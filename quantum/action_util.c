@@ -19,9 +19,9 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "debug.h"
 #include "action_util.h"
 #include "action_layer.h"
+#include "action_tapping.h"
 #include "timer.h"
 #include "keycode_config.h"
-#include "usb_device_state.h"
 #include <string.h>
 
 extern keymap_config_t keymap_config;
@@ -38,11 +38,6 @@ static uint8_t suppressed_mods    = 0;
 report_keyboard_t *keyboard_report = &(report_keyboard_t){};
 #ifdef NKRO_ENABLE
 report_nkro_t *nkro_report = &(report_nkro_t){};
-#    ifdef APDAPTIVE_NKRO_ENABLE
-uint8_t kb_report_changed;
-uint8_t kb_keys_count  = 0;
-uint8_t nkro_bit_count = 0;
-#    endif
 #endif
 
 extern inline void add_key(uint8_t key);
@@ -52,8 +47,19 @@ extern inline void clear_keys(void);
 #ifndef NO_ACTION_ONESHOT
 static uint8_t oneshot_mods        = 0;
 static uint8_t oneshot_locked_mods = 0;
-uint8_t        get_oneshot_locked_mods(void) {
+/**
+ * @brief Retrieve current state of locked oneshot modifiers.
+ *
+ * @return Current state of the locked oneshot modifier keys as a bitmask.
+ */
+uint8_t get_oneshot_locked_mods(void) {
     return oneshot_locked_mods;
+}
+/**
+ * Same as \ref get_oneshot_locked_mods but returns \ref mod_t for convenience.
+ */
+mod_t get_oneshot_locked_mod_state(void) {
+    return (mod_t)get_oneshot_locked_mods();
 }
 void add_oneshot_locked_mods(uint8_t mods) {
     if ((oneshot_locked_mods & mods) != mods) {
@@ -225,7 +231,7 @@ bool is_oneshot_layer_active(void) {
 void oneshot_set(bool active) {
     if (keymap_config.oneshot_enable != active) {
         keymap_config.oneshot_enable = active;
-        eeconfig_update_keymap(keymap_config.raw);
+        eeconfig_update_keymap(&keymap_config);
         clear_oneshot_layer_state(ONESHOT_OTHER_KEY_PRESSED);
         dprintf("Oneshot: active: %d\n", active);
     }
@@ -279,6 +285,10 @@ static uint8_t get_mods_for_report(void) {
     }
 #endif
 
+#ifdef SPECULATIVE_HOLD
+    mods |= get_speculative_mods();
+#endif
+
 #ifdef KEY_OVERRIDE_ENABLE
     // These need to be last to be able to properly control key overrides
     mods &= ~suppressed_mods;
@@ -301,17 +311,13 @@ void send_6kro_report(void) {
         memcpy(&last_report, keyboard_report, sizeof(report_keyboard_t));
         host_keyboard_send(keyboard_report);
     }
-#    ifdef APDAPTIVE_NKRO_ENABLE
-    kb_report_changed &= ~KB_RPT_STD;
-#    endif
 #endif
 }
 
 #ifdef NKRO_ENABLE
 void send_nkro_report(void) {
-#    ifndef APDAPTIVE_NKRO_ENABLE
     nkro_report->mods = get_mods_for_report();
-#    endif
+
     static report_nkro_t last_report;
 
     /* Only send the report if there are changes to propagate to the host. */
@@ -319,9 +325,6 @@ void send_nkro_report(void) {
         memcpy(&last_report, nkro_report, sizeof(report_nkro_t));
         host_nkro_send(nkro_report);
     }
-#    ifdef APDAPTIVE_NKRO_ENABLE
-    kb_report_changed &= ~KB_RPT_NKRO;
-#    endif
 }
 #endif
 
@@ -331,38 +334,33 @@ void send_nkro_report(void) {
  */
 void send_keyboard_report(void) {
 #ifdef NKRO_ENABLE
-#    ifdef APDAPTIVE_NKRO_ENABLE
-    if (kb_report_changed & KB_RPT_STD) send_6kro_report();
-    if (usb_device_state_get_protocol() == USB_PROTOCOL_REPORT && (kb_report_changed & KB_RPT_NKRO)) {
+    if (host_can_send_nkro() && keymap_config.nkro) {
         send_nkro_report();
+        return;
     }
-#    else
-    if (usb_device_state_get_protocol() == USB_PROTOCOL_REPORT && keymap_config.nkro) {
-        send_nkro_report();
-    } else {
-        send_6kro_report();
-    }
-#    endif
-#else
-    send_6kro_report();
 #endif
+    send_6kro_report();
 }
 
-/** \brief Get mods
+/**
+ * @brief Retrieve current state of modifiers.
  *
- * FIXME: needs doc
+ * @return Current state of the modifier keys as a bitmask.
  */
 uint8_t get_mods(void) {
     return real_mods;
+}
+/**
+ * Same as \ref get_mods but returns \ref mod_t for convenience.
+ */
+mod_t get_mod_state(void) {
+    return (mod_t)get_mods();
 }
 /** \brief add mods
  *
  * FIXME: needs doc
  */
 void add_mods(uint8_t mods) {
-#if defined(NKRO_ENABLE) && defined(APDAPTIVE_NKRO_ENABLE)
-    if ((real_mods & mods) != mods) kb_report_changed |= KB_RPT_STD;
-#endif
     real_mods |= mods;
 }
 /** \brief del mods
@@ -370,9 +368,6 @@ void add_mods(uint8_t mods) {
  * FIXME: needs doc
  */
 void del_mods(uint8_t mods) {
-#if defined(NKRO_ENABLE) && defined(APDAPTIVE_NKRO_ENABLE)
-    if (real_mods & mods) kb_report_changed |= KB_RPT_STD;
-#endif
     real_mods &= ~mods;
 }
 /** \brief set mods
@@ -380,9 +375,6 @@ void del_mods(uint8_t mods) {
  * FIXME: needs doc
  */
 void set_mods(uint8_t mods) {
-#if defined(NKRO_ENABLE) && defined(APDAPTIVE_NKRO_ENABLE)
-    if (real_mods != mods) kb_report_changed |= KB_RPT_STD;
-#endif
     real_mods = mods;
 }
 /** \brief clear mods
@@ -390,27 +382,28 @@ void set_mods(uint8_t mods) {
  * FIXME: needs doc
  */
 void clear_mods(void) {
-#if defined(NKRO_ENABLE) && defined(APDAPTIVE_NKRO_ENABLE)
-    if (real_mods) kb_report_changed |= KB_RPT_STD;
-#endif
     real_mods = 0;
 }
 
-/** \brief get weak mods
+/**
+ * @brief Retrieve current state of weak modifiers.
  *
- * FIXME: needs doc
+ * @return Current state of the weak modifier keys as a bitmask.
  */
 uint8_t get_weak_mods(void) {
     return weak_mods;
+}
+/**
+ * Same as \ref get_weak_mods but returns \ref mod_t for convenience.
+ */
+mod_t get_weak_mod_state(void) {
+    return (mod_t)get_weak_mods();
 }
 /** \brief add weak mods
  *
  * FIXME: needs doc
  */
 void add_weak_mods(uint8_t mods) {
-#if defined(NKRO_ENABLE) && defined(APDAPTIVE_NKRO_ENABLE)
-    if ((weak_mods & mods) != mods) kb_report_changed |= KB_RPT_STD;
-#endif
     weak_mods |= mods;
 }
 /** \brief del weak mods
@@ -418,9 +411,6 @@ void add_weak_mods(uint8_t mods) {
  * FIXME: needs doc
  */
 void del_weak_mods(uint8_t mods) {
-#if defined(NKRO_ENABLE) && defined(APDAPTIVE_NKRO_ENABLE)
-    if (weak_mods & mods) kb_report_changed |= KB_RPT_STD;
-#endif
     weak_mods &= ~mods;
 }
 /** \brief set weak mods
@@ -428,9 +418,6 @@ void del_weak_mods(uint8_t mods) {
  * FIXME: needs doc
  */
 void set_weak_mods(uint8_t mods) {
-#if defined(NKRO_ENABLE) && defined(APDAPTIVE_NKRO_ENABLE)
-    if (weak_mods != mods) kb_report_changed |= KB_RPT_STD;
-#endif
     weak_mods = mods;
 }
 /** \brief clear weak mods
@@ -438,9 +425,6 @@ void set_weak_mods(uint8_t mods) {
  * FIXME: needs doc
  */
 void clear_weak_mods(void) {
-#if defined(NKRO_ENABLE) && defined(APDAPTIVE_NKRO_ENABLE)
-    if (weak_mods) kb_report_changed |= KB_RPT_STD;
-#endif
     weak_mods = 0;
 }
 
@@ -448,45 +432,41 @@ void clear_weak_mods(void) {
 /** \brief set weak mods used by key overrides. DO not call this manually
  */
 void set_weak_override_mods(uint8_t mods) {
-#    if defined(NKRO_ENABLE) && defined(APDAPTIVE_NKRO_ENABLE)
-    if (weak_override_mods != mods) kb_report_changed |= KB_RPT_STD;
-#    endif
     weak_override_mods = mods;
 }
 /** \brief clear weak mods used by key overrides. DO not call this manually
  */
 void clear_weak_override_mods(void) {
-#    if defined(NKRO_ENABLE) && defined(APDAPTIVE_NKRO_ENABLE)
-    if (weak_override_mods) kb_report_changed |= KB_RPT_STD;
-#    endif
     weak_override_mods = 0;
 }
 
 /** \brief set suppressed mods used by key overrides. DO not call this manually
  */
 void set_suppressed_override_mods(uint8_t mods) {
-#    if defined(NKRO_ENABLE) && defined(APDAPTIVE_NKRO_ENABLE)
-    if (weak_override_mods != mods) suppressed_mods |= KB_RPT_STD;
-#    endif
     suppressed_mods = mods;
 }
 /** \brief clear suppressed mods used by key overrides. DO not call this manually
  */
 void clear_suppressed_override_mods(void) {
-#    if defined(NKRO_ENABLE) && defined(APDAPTIVE_NKRO_ENABLE)
-    if (suppressed_mods) kb_report_changed |= KB_RPT_STD;
-#    endif
     suppressed_mods = 0;
 }
 #endif
 
 #ifndef NO_ACTION_ONESHOT
-/** \brief get oneshot mods
+/**
+ * @brief Retrieve current state of oneshot modifiers.
  *
- * FIXME: needs doc
+ * @return Current state of the oneshot modifier keys as a bitmask.
  */
 uint8_t get_oneshot_mods(void) {
     return oneshot_mods;
+}
+
+/**
+ * Same as \ref get_oneshot_mods but returns \ref mod_t for convenience.
+ */
+mod_t get_oneshot_mod_state(void) {
+    return (mod_t)get_oneshot_mods();
 }
 
 void add_oneshot_mods(uint8_t mods) {

@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:keyboards/keychron/k3_version_3/mcuconf.h
 /* Copyright 2024 ~ 2025 @ Keychron (https://www.keychron.com)
+========
+/* Copyright 2020 QMK
+>>>>>>>> 0.34.8:keyboards/keychron/x0/mcuconf.h
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,8 +22,16 @@
 
 #include_next <mcuconf.h>
 
+<<<<<<<< HEAD:keyboards/keychron/k3_version_3/mcuconf.h
 #undef WB32_I2C_USE_I2C1
 #define WB32_I2C_USE_I2C1 TRUE
 
 #undef WB32_SPI_USE_QSPI
 #define WB32_SPI_USE_QSPI TRUE
+========
+#undef STM32_PLLM_VALUE
+#define STM32_PLLM_VALUE 8
+
+#undef STM32_I2C_USE_I2C1
+#define STM32_I2C_USE_I2C1 TRUE
+>>>>>>>> 0.34.8:keyboards/keychron/x0/mcuconf.h

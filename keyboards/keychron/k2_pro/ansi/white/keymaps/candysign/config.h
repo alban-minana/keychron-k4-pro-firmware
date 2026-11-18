@@ -1,4 +1,8 @@
+<<<<<<<< HEAD:keyboards/keychron/k2_pro/ansi/white/keymaps/candysign/config.h
 /* Copyright 2022 ~ 2025 @ Keychron (https://www.keychron.com)
+========
+/* Copyright 2020 QMK
+>>>>>>>> 0.34.8:keyboards/mode/m65v2/mcuconf.h
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,5 +20,12 @@
 
 #pragma once
 
+<<<<<<<< HEAD:keyboards/keychron/k2_pro/ansi/white/keymaps/candysign/config.h
 #undef PRODUCT
 #define PRODUCT "CANDYSIGN KB1 Pro"
+========
+#include_next <mcuconf.h>
+
+#undef STM32_PWM_USE_TIM1
+#define STM32_PWM_USE_TIM1 TRUE
+>>>>>>>> 0.34.8:keyboards/mode/m65v2/mcuconf.h
