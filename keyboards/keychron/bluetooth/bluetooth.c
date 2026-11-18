@@ -42,6 +42,51 @@ static bluetooth_state_t     bt_state                  = BLUETOOTH_RESET;
 static bool                  pincodeEntry              = false;
 uint8_t                      bluetooth_report_protocol = true;
 
+#if defined(BT_WAKE_KEY_BUFFER_MS) && (BT_WAKE_KEY_BUFFER_MS > 0) && !defined(DISABLE_REPORT_BUFFER)
+#    define BT_WAKE_KEY_BUFFER_ENABLE
+#    ifndef BT_WAKE_KEY_BUFFER_SIZE
+#        define BT_WAKE_KEY_BUFFER_SIZE 16
+#    endif
+/* IMPROVEMENT: keep the reports produced while (re)connecting, typically the key that
+ * woke the keyboard up, and send them once connected - but only if the connection came
+ * back within BT_WAKE_KEY_BUFFER_MS of the first buffered report, so old input is never
+ * replayed. Timestamps use the RTC, which keeps running while the MCU is in STOP mode
+ * (the system timer is re-initialised on every low-power wake-up). Lives outside the
+ * report buffer, which is reset on disconnection and on MCU wake-up. */
+static report_buffer_t wake_key_buffer[BT_WAKE_KEY_BUFFER_SIZE];
+static uint8_t         wake_key_count = 0;
+static uint32_t        wake_key_time  = 0;
+
+void bluetooth_wake_key_buffer_clear(void) {
+    wake_key_count = 0;
+}
+
+static bool wake_key_buffer_expired(void) {
+    return rtc_timer_elapsed_ms(wake_key_time) > BT_WAKE_KEY_BUFFER_MS;
+}
+
+static void wake_key_buffer_add(report_buffer_t *report) {
+    if (wake_key_count && wake_key_buffer_expired()) wake_key_count = 0;
+    if (wake_key_count == 0) wake_key_time = rtc_timer_read_ms();
+
+    /* When full, overwrite the last entry: intermediate states may be lost but the
+     * final state (including key releases) is always the latest one, so no stuck key. */
+    if (wake_key_count < BT_WAKE_KEY_BUFFER_SIZE) wake_key_count++;
+    wake_key_buffer[wake_key_count - 1] = *report;
+}
+
+static void wake_key_buffer_flush(void) {
+    if (wake_key_count && !wake_key_buffer_expired()) {
+        for (uint8_t i = 0; i < wake_key_count; i++) {
+            report_buffer_enqueue(&wake_key_buffer[i]);
+        }
+    }
+    wake_key_count = 0;
+}
+#else
+void bluetooth_wake_key_buffer_clear(void) {}
+#endif
+
 /* declarations */
 uint8_t bluetooth_keyboard_leds(void);
 void    bluetooth_send_keyboard(report_keyboard_t *report);
@@ -156,6 +201,8 @@ void bluetooth_connect_ex(uint8_t host_idx, uint16_t timeout) {
 
     if (host_idx != 0) {
         if (host_index == host_idx && bt_state == BLUETOOTH_CONNECTED) return;
+        /* Never send keys typed for one host to another one */
+        if (host_idx != host_index) bluetooth_wake_key_buffer_clear();
         host_index = host_idx;
         led_state  = 0;
     }
@@ -217,6 +264,11 @@ static void bluetooth_enter_connected(uint8_t host_idx) {
 #ifdef BT_REPORT_BATTERY_LEVEL
     /* Send the battery level to the (new) host as soon as possible */
     battery_report_level_reset();
+#endif
+
+#ifdef BT_WAKE_KEY_BUFFER_ENABLE
+    /* Queued after the empty report sent by clear_keyboard() above */
+    wake_key_buffer_flush();
 #endif
 
     bluetooth_enter_connected_kb(host_idx);
@@ -356,6 +408,16 @@ void bluetooth_send_keyboard(report_keyboard_t *report) {
         }
 
     } else if (bt_state != BLUETOOTH_RESET) {
+#ifdef BT_WAKE_KEY_BUFFER_ENABLE
+        report_buffer_t report_buffer;
+#    if defined(NKRO_ENABLE)
+        report_buffer.type = (bluetooth_report_protocol && keymap_config.nkro && bluetooth_transport.send_nkro) ? REPORT_TYPE_NKRO : REPORT_TYPE_KB;
+#    else
+        report_buffer.type = REPORT_TYPE_KB;
+#    endif
+        memcpy(&report_buffer.keyboard, report, sizeof(report_keyboard_t));
+        wake_key_buffer_add(&report_buffer);
+#endif
         bluetooth_connect();
     }
 }
@@ -395,6 +457,12 @@ void bluetooth_send_consumer(uint16_t data) {
         if (bluetooth_transport.send_consumer) bluetooth_transport.send_consumer(data);
 #endif
     } else if (bt_state != BLUETOOTH_RESET) {
+#ifdef BT_WAKE_KEY_BUFFER_ENABLE
+        report_buffer_t report_buffer;
+        report_buffer.type     = REPORT_TYPE_CONSUMER;
+        report_buffer.consumer = data;
+        wake_key_buffer_add(&report_buffer);
+#endif
         bluetooth_connect();
     }
 }

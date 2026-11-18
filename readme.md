@@ -23,6 +23,7 @@ fewer Bluetooth bugs, better battery life.**
 | Bluetooth wake pulse | Blocking 3 ms before **every** report | Only when the module UART may be asleep (>1.5 s idle) |
 | Bluetooth report rate | 90 Hz (11.1 ms) | 133 Hz (7.5 ms) |
 | Matrix scan | 2 shift-register writes + 2 delays per column | 1 write + 1 delay per column (~2× faster scan) |
+| Key pressed while Bluetooth reconnects | Dropped (the wake-up key is lost) | Kept and sent once connected, if within 3 s |
 
 ### Bug fixes
 - **Stuck / repeating key over Bluetooth (6KRO)**: when the BT module reported a full FIFO, the firmware re-sent an *older* report and dropped the rejected one (often a key release).
@@ -79,6 +80,7 @@ All options live at the top of [`keyboards/keychron/k4_pro/config.h`](keyboards/
 | `CKBT51_SMART_WAKE` | on | Comment out if characters go missing over Bluetooth |
 | `CKBT51_REPORT_RATE` | `133` | `90` = stock, slightly less radio power |
 | `CONNECTED_BACKLIGHT_DISABLE_TIMEOUT` | `180` | Backlight off delay on battery (seconds) |
+| `BT_WAKE_KEY_BUFFER_MS` | `3000` | Keys typed while reconnecting are sent if the link is back within this delay (`0` = off) |
 | `BT_REPORT_BATTERY_LEVEL` | on | Send the battery level to the host OS over Bluetooth |
 
 ## Building it yourself

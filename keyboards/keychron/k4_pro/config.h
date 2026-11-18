@@ -48,6 +48,12 @@
 #        define CONNECTED_BACKLIGHT_DISABLE_TIMEOUT 180
 #    endif
 
+/* Keep the keys typed while the keyboard reconnects (e.g. the key that woke it up)
+ * and send them once connected, if that happens within this many ms. 0 = disabled. */
+#    ifndef BT_WAKE_KEY_BUFFER_MS
+#        define BT_WAKE_KEY_BUFFER_MS 3000
+#    endif
+
 /* Send the battery level to the host OS (shown in its Bluetooth settings).
  * Comment out to disable. */
 #    define BT_REPORT_BATTERY_LEVEL
