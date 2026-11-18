@@ -16,6 +16,49 @@
 
 #pragma once
 
+/* ===========================================================================
+ * Community firmware tuning (see /readme.md). Every option can be overridden
+ * from a keymap config.h (#undef then #define).
+ * =========================================================================== */
+
+/* Debounce window in ms. With DEBOUNCE_TYPE = sym_eager_pk (rules.mk) a press is
+ * reported on the first contact; this window only filters the bounces that follow.
+ * Raise to 7-8 if a worn switch double-types. Stock Keychron: sym_defer_g, 5 ms
+ * (every press delayed by 5 ms). */
+#ifndef DEBOUNCE
+#    define DEBOUNCE 5
+#endif
+
+#ifdef KC_BLUETOOTH_ENABLE
+/* Skip the blocking 3 ms CKBT51 UART wake-up pulse for HID reports when a packet was
+ * sent less than CKBT51_WAKE_SKIP_MS ago (the module only sleeps its UART after 3 s
+ * of inactivity). Comment out to restore the stock behaviour. */
+#    define CKBT51_SMART_WAKE
+#    ifndef CKBT51_WAKE_SKIP_MS
+#        define CKBT51_WAKE_SKIP_MS 1500
+#    endif
+
+/* Bluetooth report rate in Hz. The CKBT51 accepts 90 (stock) or 133. */
+#    ifndef CKBT51_REPORT_RATE
+#        define CKBT51_REPORT_RATE 133
+#    endif
+
+/* Backlight off delay on battery, Bluetooth connected, in seconds (stock: 600). */
+#    ifndef CONNECTED_BACKLIGHT_DISABLE_TIMEOUT
+#        define CONNECTED_BACKLIGHT_DISABLE_TIMEOUT 180
+#    endif
+
+/* Keep the keys typed while the keyboard reconnects (e.g. the key that woke it up)
+ * and send them once connected, if that happens within this many ms. 0 = disabled. */
+#    ifndef BT_WAKE_KEY_BUFFER_MS
+#        define BT_WAKE_KEY_BUFFER_MS 3000
+#    endif
+
+/* Send the battery level to the host OS (shown in its Bluetooth settings).
+ * Comment out to disable. */
+#    define BT_REPORT_BATTERY_LEVEL
+#endif
+
 /* turn off effects when suspended */
 #define RGB_MATRIX_SLEEP
 #define LED_MATRIX_SLEEP
@@ -58,10 +101,14 @@
             { 20, 21, 22, 23, 24, 25, 26, 27, 28, 29 }
 
 /* Backlit disable timeout when keyboard is disconnected(unit: second) */
-#        define DISCONNECTED_BACKLIGHT_DISABLE_TIMEOUT 40
+#        ifndef DISCONNECTED_BACKLIGHT_DISABLE_TIMEOUT
+#            define DISCONNECTED_BACKLIGHT_DISABLE_TIMEOUT 40
+#        endif
 
 /* Backlit disable timeout when keyboard is connected(unit: second) */
-#        define CONNECTED_BACKLIGHT_DISABLE_TIMEOUT 600
+#        ifndef CONNECTED_BACKLIGHT_DISABLE_TIMEOUT
+#            define CONNECTED_BACKLIGHT_DISABLE_TIMEOUT 600
+#        endif
 #    endif
 
 /* Keep USB connection in blueooth mode */

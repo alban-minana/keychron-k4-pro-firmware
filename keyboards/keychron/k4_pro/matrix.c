@@ -137,8 +137,13 @@ void matrix_read_rows_on_col(matrix_row_t current_matrix[], uint8_t current_col)
         }
     }
 
-    unselect_col(current_col);
-    HC595_delay(100);
+    /* IMPROVEMENT: for shift-register columns, selecting the next column already drives
+     * this one high again, so only the last column needs the extra 16-bit "all high" shift.
+     * The settle delay after unselect is also dropped: the 100-cycle delay before the next
+     * column is read already covers the rows' recovery. ~Halves the scan time. */
+    if (current_col < DIRECT_COL_NUM || current_col == MATRIX_COLS - 1) {
+        unselect_col(current_col);
+    }
 }
 
 void matrix_init_custom(void) {

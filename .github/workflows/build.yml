@@ -1,0 +1,60 @@
+name: Build firmware
+
+# Reusable build: compiles the 4 K4 Pro variants and uploads them as artifacts.
+on:
+  workflow_call:
+    inputs:
+      version:
+        type: string
+        default: dev
+  push:
+    branches: [main]
+    paths-ignore: ['**.md', 'k4pro/docs/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.variant }}
+    runs-on: ubuntu-latest
+    container: ghcr.io/qmk/qmk_cli@sha256:b7d7fa8fb4432b569931de5ad59098cb788f440ed61a62c5126746b71aee0f4a
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [ansi/rgb, ansi/white, iso/rgb, iso/white]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch required submodules
+        run: |
+          git config --global --add safe.directory '*'
+          git submodule update --init --depth 1 lib/chibios lib/chibios-contrib lib/printf lib/lufa
+
+      - name: Install Python dependencies of this QMK tree
+        run: |
+          /opt/uv/tools/qmk/bin/python3 -m pip install -r requirements.txt \
+          || (/opt/uv/tools/qmk/bin/python3 -m ensurepip && /opt/uv/tools/qmk/bin/python3 -m pip install -r requirements.txt)
+
+      - name: Compile
+        run: make keychron/k4_pro/${{ matrix.variant }}:via SKIP_GIT=yes
+
+      - name: Rename binary
+        id: name
+        shell: bash
+        run: |
+          V="${{ matrix.variant }}"; V="${V/\//_}"
+          VER="${{ inputs.version || 'dev' }}"
+          OUT="keychron_k4_pro_${V}_${VER}.bin"
+          cp "keychron_k4_pro_${V}_via.bin" "$OUT"
+          echo "file=$OUT" >> "$GITHUB_OUTPUT"
+          echo "artifact=k4_pro_${V}" >> "$GITHUB_OUTPUT"
+          echo "### \`$OUT\` — $(stat -c%s "$OUT") bytes" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.name.outputs.artifact }}
+          path: ${{ steps.name.outputs.file }}
+          if-no-files-found: error

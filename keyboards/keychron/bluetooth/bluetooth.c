@@ -42,6 +42,51 @@ static bluetooth_state_t     bt_state                  = BLUETOOTH_RESET;
 static bool                  pincodeEntry              = false;
 uint8_t                      bluetooth_report_protocol = true;
 
+#if defined(BT_WAKE_KEY_BUFFER_MS) && (BT_WAKE_KEY_BUFFER_MS > 0) && !defined(DISABLE_REPORT_BUFFER)
+#    define BT_WAKE_KEY_BUFFER_ENABLE
+#    ifndef BT_WAKE_KEY_BUFFER_SIZE
+#        define BT_WAKE_KEY_BUFFER_SIZE 16
+#    endif
+/* IMPROVEMENT: keep the reports produced while (re)connecting, typically the key that
+ * woke the keyboard up, and send them once connected - but only if the connection came
+ * back within BT_WAKE_KEY_BUFFER_MS of the first buffered report, so old input is never
+ * replayed. Timestamps use the RTC, which keeps running while the MCU is in STOP mode
+ * (the system timer is re-initialised on every low-power wake-up). Lives outside the
+ * report buffer, which is reset on disconnection and on MCU wake-up. */
+static report_buffer_t wake_key_buffer[BT_WAKE_KEY_BUFFER_SIZE];
+static uint8_t         wake_key_count = 0;
+static uint32_t        wake_key_time  = 0;
+
+void bluetooth_wake_key_buffer_clear(void) {
+    wake_key_count = 0;
+}
+
+static bool wake_key_buffer_expired(void) {
+    return rtc_timer_elapsed_ms(wake_key_time) > BT_WAKE_KEY_BUFFER_MS;
+}
+
+static void wake_key_buffer_add(report_buffer_t *report) {
+    if (wake_key_count && wake_key_buffer_expired()) wake_key_count = 0;
+    if (wake_key_count == 0) wake_key_time = rtc_timer_read_ms();
+
+    /* When full, overwrite the last entry: intermediate states may be lost but the
+     * final state (including key releases) is always the latest one, so no stuck key. */
+    if (wake_key_count < BT_WAKE_KEY_BUFFER_SIZE) wake_key_count++;
+    wake_key_buffer[wake_key_count - 1] = *report;
+}
+
+static void wake_key_buffer_flush(void) {
+    if (wake_key_count && !wake_key_buffer_expired()) {
+        for (uint8_t i = 0; i < wake_key_count; i++) {
+            report_buffer_enqueue(&wake_key_buffer[i]);
+        }
+    }
+    wake_key_count = 0;
+}
+#else
+void bluetooth_wake_key_buffer_clear(void) {}
+#endif
+
 /* declarations */
 uint8_t bluetooth_keyboard_leds(void);
 void    bluetooth_send_keyboard(report_keyboard_t *report);
@@ -157,6 +202,8 @@ void bluetooth_connect_ex(uint8_t host_idx, uint16_t timeout) {
 
     if (host_idx != 0) {
         if (host_index == host_idx && bt_state == BLUETOOTH_CONNECTED) return;
+        /* Never send keys typed for one host to another one */
+        if (host_idx != host_index) bluetooth_wake_key_buffer_clear();
         host_index = host_idx;
         led_state  = 0;
     }
@@ -215,6 +262,16 @@ static void bluetooth_enter_connected(uint8_t host_idx) {
     keymap_config.nkro = false;
 #endif
 
+#ifdef BT_REPORT_BATTERY_LEVEL
+    /* Send the battery level to the (new) host as soon as possible */
+    battery_report_level_reset();
+#endif
+
+#ifdef BT_WAKE_KEY_BUFFER_ENABLE
+    /* Queued after the empty report sent by clear_keyboard() above */
+    wake_key_buffer_flush();
+#endif
+
     bluetooth_enter_connected_kb(host_idx);
 #if defined(BAT_LOW_LED_PIN) || defined(BAT_LOW_LED_PIN_STATE)
     if (battery_is_empty()) {
@@ -261,8 +318,11 @@ static void bluetooth_enter_pin_code_entry(void) {
 
 /* Exit pin code entry state. */
 static void bluetooth_exit_pin_code_entry(void) {
-#if defined(NKRO_ENABLE)
-    keymap_config.nkro = true;
+#if defined(NKRO_ENABLE) && defined(BLUETOOTH_NKRO_ENABLE)
+    /* FIX: restore the user's NKRO choice instead of forcing it on */
+    keymap_config.nkro = nkro.bluetooth;
+#elif defined(NKRO_ENABLE)
+    keymap_config.nkro = false;
 #endif
     pincodeEntry = false;
     bluetooth_exit_pin_code_entry_kb();
@@ -278,7 +338,8 @@ __attribute__((weak)) void bluetooth_exit_pin_code_entry_kb(void){};
 
 /*  */
 static void bluetooth_hid_set_protocol(bool report_protocol) {
-    bluetooth_report_protocol = false;
+    /* FIX (latent, the CKBT51 driver never emits this event): honour the argument */
+    bluetooth_report_protocol = report_protocol;
 }
 
 uint8_t bluetooth_keyboard_leds(void) {
@@ -316,6 +377,12 @@ void bluetooth_send_keyboard(report_keyboard_t *report) {
 #endif
         }
     } else if (bt_state != BLUETOOTH_RESET) {
+#ifdef BT_WAKE_KEY_BUFFER_ENABLE
+        report_buffer_t report_buffer;
+        report_buffer.type = REPORT_TYPE_KB;
+        memcpy(&report_buffer.keyboard, report, sizeof(report_keyboard_t));
+        wake_key_buffer_add(&report_buffer);
+#endif
         bluetooth_connect();
     }
 }
@@ -325,7 +392,15 @@ void bluetooth_send_nkro(report_nkro_t *report) {
     if (bt_state == BLUETOOTH_CONNECTED || (bt_state == BLUETOOTH_PARING && pincodeEntry)) {
         if (bluetooth_transport.send_nkro) {
 #ifndef DISABLE_REPORT_BUFFER
-            if (report_buffer_is_empty() && report_buffer_next_inverval()) {
+            /* FIX: the direct-send fast path did not record what it sent. When the module
+             * answered "FIFO full", report_buffer_task() re-sent kb_rpt, i.e. an OLDER report,
+             * and the rejected one (often a key release) was lost -> stuck / repeating key
+             * until the next key event. A pending retry could also re-send an old report
+             * after this newer one. Now: no fast path while a retry is pending, and kb_rpt
+             * always holds the last report actually sent. */
+            if (report_buffer_is_empty() && report_buffer_next_inverval() && report_buffer_get_retry() == 0) {
+                kb_rpt.type = REPORT_TYPE_NKRO;
+                memcpy(&kb_rpt.nkro, report, sizeof(report_nkro_t));
                 bluetooth_transport.send_nkro(&report->mods);
                 report_buffer_update_timer();
             } else {
@@ -339,6 +414,12 @@ void bluetooth_send_nkro(report_nkro_t *report) {
 #endif
         }
     } else if (bt_state != BLUETOOTH_RESET) {
+#ifdef BT_WAKE_KEY_BUFFER_ENABLE
+        report_buffer_t report_buffer;
+        report_buffer.type = REPORT_TYPE_NKRO;
+        memcpy(&report_buffer.nkro, report, sizeof(report_nkro_t));
+        wake_key_buffer_add(&report_buffer);
+#endif
         bluetooth_connect();
     }
 }
@@ -362,7 +443,10 @@ void bluetooth_send_system(uint16_t data) {
 void bluetooth_send_consumer(uint16_t data) {
     if (bt_state == BLUETOOTH_CONNECTED) {
 #ifndef DISABLE_REPORT_BUFFER
-        if (report_buffer_is_empty() && report_buffer_next_inverval()) {
+        if (report_buffer_is_empty() && report_buffer_next_inverval() && report_buffer_get_retry() == 0) {
+            /* FIX: same stale-retry issue as the keyboard fast path (see bluetooth_send_keyboard) */
+            kb_rpt.type     = REPORT_TYPE_CONSUMER;
+            kb_rpt.consumer = data;
             if (bluetooth_transport.send_consumer) bluetooth_transport.send_consumer(data);
             report_buffer_update_timer();
         } else {
@@ -375,6 +459,12 @@ void bluetooth_send_consumer(uint16_t data) {
         if (bluetooth_transport.send_consumer) bluetooth_transport.send_consumer(data);
 #endif
     } else if (bt_state != BLUETOOTH_RESET) {
+#ifdef BT_WAKE_KEY_BUFFER_ENABLE
+        report_buffer_t report_buffer;
+        report_buffer.type     = REPORT_TYPE_CONSUMER;
+        report_buffer.consumer = data;
+        wake_key_buffer_add(&report_buffer);
+#endif
         bluetooth_connect();
     }
 }

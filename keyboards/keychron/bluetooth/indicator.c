@@ -542,7 +542,8 @@ bool LED_INDICATORS_KB(void) {
             if (indicator_config.highlight) {
                 SET_ALL_LED_OFF();
             } else if (last_host_index != host_index) {
-                SET_LED_OFF(host_led_matrix_list[last_host_index - 1]);
+                /* FIX: last_host_index starts at 0xFF, which read host_led_matrix_list[254] (out of bounds) */
+                if (last_host_index >= 1 && last_host_index <= HOST_DEVICES_COUNT) SET_LED_OFF(host_led_matrix_list[last_host_index - 1]);
                 last_host_index = host_index;
             }
 

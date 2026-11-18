@@ -55,6 +55,8 @@ __attribute__((weak)) void bt_transport_enable(bool enable) {
         }
     } else {
         indicator_stop();
+        /* Keys typed in Bluetooth mode must not be replayed after switching back */
+        bluetooth_wake_key_buffer_clear();
 
         if (bluetooth_get_state() == BLUETOOTH_CONNECTED) {
             report_keyboard_t empty_report = {0};

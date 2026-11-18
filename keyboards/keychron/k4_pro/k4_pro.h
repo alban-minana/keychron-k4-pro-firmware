@@ -35,6 +35,12 @@ enum {
     KC_ROPTN,
     KC_LCMMD,
     KC_RCMMD,
+    /* COMPAT: Mission Control / Launchpad sit here in Keychron's common keycode list
+     * (keychron_common.h), which Keychron Launcher uses to label and write the K4 Pro
+     * custom keycodes. Without them every following keycode was shifted by two in
+     * Launcher (e.g. Fn+1 shown as "Cortana", Fn+B as "BTH2"). */
+    KC_MCTRL,
+    KC_LNPAD,
     KC_TASK,
     KC_FILE,
     KC_SNAP,

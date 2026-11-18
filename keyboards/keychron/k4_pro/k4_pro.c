@@ -50,11 +50,18 @@ key_combination_t key_comb_list[4] = {
 #ifdef KC_BLUETOOTH_ENABLE
 bool                   firstDisconnect  = true;
 bool                   bt_factory_reset = false;
-static virtual_timer_t pairing_key_timer;
 
-static void pairing_key_timer_cb(void *arg) {
-    bluetooth_pairing_ex(*(uint8_t *)arg, NULL);
-}
+/* FIX: the original code started pairing from a ChibiOS virtual-timer callback, i.e. in
+ * interrupt context, which then busy-waited 3 ms and wrote to the UART (sdWrite is not
+ * ISR-safe) while racing with the main loop on bt_state. The long press is now timed
+ * with a plain timestamp and handled from matrix_scan_kb() in the main loop. */
+#    define PAIRING_KEY_HOLD_MS 2000
+static uint32_t pairing_key_timer = 0;
+static uint8_t  pairing_host_idx  = 0;
+
+#    ifndef CKBT51_REPORT_RATE
+#        define CKBT51_REPORT_RATE 90
+#    endif
 #endif
 
 bool dip_switch_update_kb(uint8_t index, bool active) {
@@ -84,6 +91,20 @@ bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
                 unregister_code(mac_keycode[keycode - KC_LOPTN]);
             }
             return false; // Skip all further processing of this key)
+        case KC_MCTRL:
+            if (record->event.pressed) {
+                register_code(KC_MISSION_CONTROL);
+            } else {
+                unregister_code(KC_MISSION_CONTROL);
+            }
+            return false;
+        case KC_LNPAD:
+            if (record->event.pressed) {
+                register_code(KC_LAUNCHPAD);
+            } else {
+                unregister_code(KC_LAUNCHPAD);
+            }
+            return false;
         case KC_TASK:
         case KC_FILE:
         case KC_SNAP:
@@ -107,12 +128,13 @@ bool process_record_kb(uint16_t keycode, keyrecord_t *record) {
         case BT_HST1 ... BT_HST3:
             if (get_transport() == TRANSPORT_BLUETOOTH) {
                 if (record->event.pressed) {
-                    host_idx = keycode - BT_HST1 + 1;
-                    chVTSet(&pairing_key_timer, TIME_MS2I(2000), (vtfunc_t)pairing_key_timer_cb, &host_idx);
+                    host_idx          = keycode - BT_HST1 + 1;
+                    pairing_host_idx  = host_idx;
+                    pairing_key_timer = sync_timer_read32() | 1;
                     bluetooth_connect_ex(host_idx, 0);
                 } else {
-                    host_idx = 0;
-                    chVTReset(&pairing_key_timer);
+                    host_idx          = 0;
+                    pairing_key_timer = 0;
                 }
             }
             break;
@@ -171,6 +193,13 @@ void matrix_scan_kb(void) {
         unregister_code(KC_SPACE);
     }
 
+#ifdef KC_BLUETOOTH_ENABLE
+    if (pairing_key_timer && sync_timer_elapsed32(pairing_key_timer) > PAIRING_KEY_HOLD_MS) {
+        pairing_key_timer = 0;
+        bluetooth_pairing_ex(pairing_host_idx, NULL);
+    }
+#endif
+
 #ifdef FACTORY_RESET_TASK
     FACTORY_RESET_TASK();
 #endif
@@ -188,7 +217,7 @@ static void ckbt51_param_init(void) {
                             .pairing_timeout        = 180,
                             .pairing_mode           = 0,
                             .reconnect_timeout      = 5,
-                            .report_rate            = 90,
+                            .report_rate            = CKBT51_REPORT_RATE,
                             .vendor_id_source       = 1,
                             .verndor_id             = 0, // Must be 0x3434
                             .product_id             = PRODUCT_ID};
@@ -216,7 +245,7 @@ void ckbt51_default_ack_handler(uint8_t *data, uint8_t len) {
                                 .pairing_timeout        = 180,
                                 .pairing_mode           = 0,
                                 .reconnect_timeout      = 5,
-                                .report_rate            = 90,
+                                .report_rate            = CKBT51_REPORT_RATE,
                                 .vendor_id_source       = 1,
                                 .verndor_id             = 0, // Must be 0x3434
                                 .product_id             = PRODUCT_ID};

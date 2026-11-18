@@ -1,0 +1,37 @@
+name: Issue triage
+
+# Adds labels from the issue form answers (variant, connection, area).
+on:
+  issues:
+    types: [opened, edited]
+
+permissions:
+  issues: write
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.issue.body || '';
+            const answer = (title) => {
+              const m = body.match(new RegExp(`### ${title}\s+([^#]+)`));
+              return m ? m[1].trim() : '';
+            };
+            const labels = [];
+            const variant = answer('Keyboard variant');
+            if (['ISO RGB', 'ISO White', 'ANSI RGB', 'ANSI White'].includes(variant)) labels.push(`variant: ${variant}`);
+            if (answer('Connection mode').includes('Bluetooth')) labels.push('bluetooth');
+            const area = {
+              'Latency / responsiveness': 'latency',
+              'Battery life': 'battery',
+              'Bluetooth': 'bluetooth',
+              'Lighting': 'lighting',
+              'Keymap / features': 'keymap',
+            }[answer('Area')];
+            if (area) labels.push(area);
+            if (labels.length) {
+              await github.rest.issues.addLabels({ ...context.repo, issue_number: context.issue.number, labels });
+            }

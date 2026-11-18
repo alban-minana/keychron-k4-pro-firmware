@@ -1,41 +1,50 @@
 name: Bug report
-description: Create a report to help us improve QMK Firmware.
-title: "[Bug] "
-labels: ["bug", "help wanted"]
+description: Something does not work as expected with this firmware
+labels: [bug, triage]
 body:
   - type: markdown
     attributes:
-      value: |
-        Provide a general summary of the bug in the title above.
+      value: Thanks for taking the time to report a problem. Please check the [open issues](../issues) first.
+  - type: dropdown
+    id: variant
+    attributes:
+      label: Keyboard variant
+      options: [ISO RGB, ISO White, ANSI RGB, ANSI White]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Firmware version
+      description: The release you flashed (e.g. v0.1.0-beta)
+    validations:
+      required: true
+  - type: dropdown
+    id: connection
+    attributes:
+      label: Connection mode
+      multiple: true
+      options: [USB cable, Bluetooth]
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host OS / device
+      placeholder: Windows 11, macOS 15, iPadOS…
   - type: textarea
+    id: what
     attributes:
-      label: Describe the Bug
-      description: A clear and concise description of what the bug is.
-  - type: input
-    attributes:
-      label: Keyboard Used
-      description: The name of the keyboard from the `make` or `qmk compile`/`qmk flash` commands, eg. `planck/rev6`.
-  - type: input
-    attributes:
-      label: Link to product page (if applicable)
-  - type: input
-    attributes:
-      label: Operating System
+      label: What happens, and what did you expect?
+    validations:
+      required: true
   - type: textarea
+    id: steps
     attributes:
-      label: qmk doctor Output
-      description: Output from running the `qmk doctor` command.
-      render: text
-  - type: checkboxes
+      label: Steps to reproduce
+      placeholder: "1. Switch to Bluetooth\n2. Leave the keyboard idle 5 min\n3. …"
+  - type: dropdown
+    id: stock
     attributes:
-      label: Is AutoHotKey / Karabiner installed
-      options:
-        - label: AutoHotKey (Windows)
-        - label: Karabiner (macOS)
-  - type: input
-    attributes:
-      label: Other keyboard-related software installed
-  - type: textarea
-    attributes:
-      label: Additional Context
-      description: Add any other relevant information about the problem here.
+      label: Does it also happen with the stock Keychron firmware?
+      options: [I don't know, "Yes", "No"]
