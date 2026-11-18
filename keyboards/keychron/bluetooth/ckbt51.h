@@ -141,6 +141,7 @@ void ckbt51_connect(uint8_t hostIndex, uint16_t timeout);
 void ckbt51_disconnect(void);
 void ckbt51_switch_host(uint8_t hostIndex);
 void ckbt51_read_state_reg(uint8_t reg, uint8_t len);
+void ckbt51_update_bat_lvl(uint8_t percentage);
 
 void ckbt51_get_info(module_info_t* info);
 void ckbt51_set_param(module_param_t* param);

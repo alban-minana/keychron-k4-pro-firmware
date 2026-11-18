@@ -214,6 +214,11 @@ static void bluetooth_enter_connected(uint8_t host_idx) {
     keymap_config.nkro = false;
 #endif
 
+#ifdef BT_REPORT_BATTERY_LEVEL
+    /* Send the battery level to the (new) host as soon as possible */
+    battery_report_level_reset();
+#endif
+
     bluetooth_enter_connected_kb(host_idx);
 #if defined(BAT_LOW_LED_PIN) || defined(BAT_LOW_LED_PIN_STATE)
     if (battery_is_empty()) {

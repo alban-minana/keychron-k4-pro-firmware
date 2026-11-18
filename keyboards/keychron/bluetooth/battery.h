@@ -56,5 +56,6 @@ void indicator_battery_low_enable(bool enable);
 bool battery_is_empty(void);
 bool battery_is_critical_low(void);
 bool     battery_power_on_sample(void);
+void     battery_report_level_reset(void);
 
 void battery_task(void);

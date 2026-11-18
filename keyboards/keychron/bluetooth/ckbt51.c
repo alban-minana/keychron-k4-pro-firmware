@@ -349,6 +349,20 @@ void ckbt51_read_state_reg(uint8_t reg, uint8_t len) {
     ckbt51_send_cmd(payload, i, false, false);
 }
 
+/* IMPROVEMENT: forward the battery level (0-100 %) to the module so the host OS can
+ * show it in its Bluetooth settings. The command exists in the CKBT51 command set but
+ * was never used by the stock firmware; its payload is undocumented, a single
+ * percentage byte is assumed. */
+void ckbt51_update_bat_lvl(uint8_t percentage) {
+    uint8_t i = 0;
+    memset(payload, 0, PACKET_MAX_LEN);
+
+    payload[i++] = CKBT51_CMD_UPDATE_BAT_LVL;
+    payload[i++] = percentage > 100 ? 100 : percentage;
+
+    ckbt51_send_cmd(payload, i, false, false);
+}
+
 void ckbt51_get_info(module_info_t* info) {
     uint8_t i = 0;
     memset(payload, 0, PACKET_MAX_LEN);

@@ -37,6 +37,7 @@ fewer Bluetooth bugs, better battery life.**
 - Backlight turns off after **3 min** idle on Bluetooth (stock: 10 min). The MCU can only sleep once the backlight is off, so this is the biggest lever.
 - Less CPU time per key press (no 3 ms busy-wait, faster scan).
 - **Accurate battery level** (<kbd>Fn</kbd>+<kbd>B</kbd>): real Li-ion discharge curve instead of a linear 3.5–4.1 V mapping.
+- **Battery level shown by your OS**: over Bluetooth the percentage is sent to the host (Windows / macOS / iOS Bluetooth settings). Stock firmware never sent it.
 
 Full technical write-up: [k4pro/ANALYSIS.md](k4pro/ANALYSIS.md).
 
@@ -78,6 +79,7 @@ All options live at the top of [`keyboards/keychron/k4_pro/config.h`](keyboards/
 | `CKBT51_SMART_WAKE` | on | Comment out if characters go missing over Bluetooth |
 | `CKBT51_REPORT_RATE` | `133` | `90` = stock, slightly less radio power |
 | `CONNECTED_BACKLIGHT_DISABLE_TIMEOUT` | `180` | Backlight off delay on battery (seconds) |
+| `BT_REPORT_BATTERY_LEVEL` | on | Send the battery level to the host OS over Bluetooth |
 
 ## Building it yourself
 
