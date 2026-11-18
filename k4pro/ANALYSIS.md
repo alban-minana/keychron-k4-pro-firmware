@@ -35,6 +35,7 @@ Source reviewed: [Keychron/qmk_firmware](https://github.com/Keychron/qmk_firmwar
 | BT report rate | 90 Hz | 133 Hz (documented module value) |
 | Matrix scan | 18 × (2 × 16-bit shift + 2 × 100-cycle delay) | 18 × (1 × 16-bit shift + 1 × delay) |
 | USB polling | 1 ms | 1 ms (full-speed USB minimum) |
+| Keys while BT reconnects | Dropped (`bluetooth_send_keyboard()` only triggers a reconnection) | Buffered (16 reports, RTC-timestamped so it survives MCU STOP) and sent on connection if within `BT_WAKE_KEY_BUFFER_MS` (3 s); cleared on host change and when leaving Bluetooth mode |
 
 ## Battery
 
