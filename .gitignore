@@ -124,3 +124,4 @@ k4pro/out/
 
 # Community firmware: README visuals
 !k4pro/docs/*.svg
+!k4pro/docs/*.png
