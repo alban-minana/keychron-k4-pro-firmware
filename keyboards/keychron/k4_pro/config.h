@@ -47,6 +47,10 @@
 #    ifndef CONNECTED_BACKLIGHT_DISABLE_TIMEOUT
 #        define CONNECTED_BACKLIGHT_DISABLE_TIMEOUT 180
 #    endif
+
+/* Send the battery level to the host OS (shown in its Bluetooth settings).
+ * Comment out to disable. */
+#    define BT_REPORT_BATTERY_LEVEL
 #endif
 
 /* turn off effects when suspended */

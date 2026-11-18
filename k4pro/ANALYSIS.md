@@ -49,7 +49,7 @@ Main consumers: the RGB backlight (by far), the CKBT51 radio, then the MCU.
 | BT idle disconnect (`connected_idle_timeout` 7200 s) | Open — trade-off with first-keystroke latency |
 | STOP2 instead of STOP1 | Not planned — µA-level gain, negligible vs. the radio |
 | Non-linear Li-ion voltage → % curve | Done — lookup table + interpolation (`battery.c`) |
-| Report battery level to the host OS | Planned |
+| Report battery level to the host OS | Done — `CKBT51_CMD_UPDATE_BAT_LVL` (0x32), payload assumed to be one percentage byte (undocumented); needs hardware confirmation |
 
 ## Not fixable here
 
