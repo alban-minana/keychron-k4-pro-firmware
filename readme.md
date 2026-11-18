@@ -1,8 +1,10 @@
 <img src="k4pro/docs/banner.png" alt="Keychron K4 Pro community firmware" width="100%">
 
-[![Release](https://img.shields.io/github/v/release/alban-minana/keychron-k4-pro-firmware?include_prereleases&label=release&style=flat-square&color=18181b)](https://github.com/alban-minana/keychron-k4-pro-firmware/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/alban-minana/keychron-k4-pro-firmware/build.yml?branch=main&label=build&style=flat-square)](https://github.com/alban-minana/keychron-k4-pro-firmware/actions/workflows/build.yml)
-[![License](https://img.shields.io/badge/license-GPL--2.0%2B-18181b?style=flat-square)](license_GPLv2.md)
+<p align="center">
+  <a href="https://github.com/alban-minana/keychron-k4-pro-firmware/releases"><img src="https://img.shields.io/github/v/release/alban-minana/keychron-k4-pro-firmware?include_prereleases&label=release&style=flat-square&color=18181b" alt="Release"></a>
+  <a href="https://github.com/alban-minana/keychron-k4-pro-firmware/actions/workflows/build.yml"><img src="https://img.shields.io/github/actions/workflow/status/alban-minana/keychron-k4-pro-firmware/build.yml?branch=main&label=build&style=flat-square" alt="Build"></a>
+  <a href="license_GPLv2.md"><img src="https://img.shields.io/badge/license-GPL--2.0%2B-18181b?style=flat-square" alt="License"></a>
+</p>
 
 Unofficial firmware for the **Keychron K4 Pro**: ISO and ANSI, RGB and white. It is built on Keychron's open-source QMK code, stays compatible with VIA, and you can go back to stock at any time.
 
@@ -80,13 +82,10 @@ GitHub Actions builds every push and pull request. Pushing a `v*` tag publishes 
 
 #### Hardware
 
-```mermaid
-flowchart LR
-  M[Key matrix] --> MCU[STM32L432<br/>this firmware]
-  MCU --> L[LED drivers]
-  MCU <--> U[USB-C]
-  MCU <--> B[CKBT51 Bluetooth<br/>closed firmware]
-```
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="k4pro/docs/hardware-dark.svg">
+  <img src="k4pro/docs/hardware-light.svg" alt="Key matrix and LED drivers connected to the STM32L432, which talks to USB-C and to the CKBT51 Bluetooth module" width="100%">
+</picture>
 
 #### Contributing
 
