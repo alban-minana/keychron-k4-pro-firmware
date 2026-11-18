@@ -1,24 +1,19 @@
-name: Feature request
-description: Suggest a new feature or changes to existing features.
-title: "[Feature Request] "
-labels: ["enhancement", "help wanted"]
+name: Improvement idea
+description: Suggest a feature or an improvement (latency, battery, behaviour…)
+labels: [enhancement, triage]
 body:
-  - type: markdown
-    attributes:
-      value: |
-        Provide a general summary of the changes you want in the title above.
-
-        Please refrain from asking maintainers to add support for specific keyboards -- it is unlikely they will have hardware available, and will not be able to help.
-        Your best bet is to take the initiative, add support, then submit a PR yourself.
-  - type: checkboxes
-    attributes:
-      label: Feature Request Type
-      options:
-        - label: Core functionality
-        - label: Add-on hardware support (eg. audio, RGB, OLED screen, etc.)
-        - label: Alteration (enhancement/optimization) of existing feature(s)
-        - label: New behavior
   - type: textarea
+    id: idea
     attributes:
-      label: Description
-      description: A few sentences describing what it is that you'd like to see in QMK. Additional information (such as links to spec sheets, licensing info, other related issues or PRs, etc) would be helpful.
+      label: What would you like to improve?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why / in which situation would it help?
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [Latency / responsiveness, Battery life, Bluetooth, Lighting, Keymap / features, Other]

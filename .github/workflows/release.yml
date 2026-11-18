@@ -1,0 +1,43 @@
+name: Release
+
+# Push a tag like v1.2.0 (stable) or v1.3.0-beta.1 (pre-release) and this
+# workflow builds every variant and publishes a GitHub release with the binaries.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    with:
+      version: ${{ github.ref_name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: k4pro/RELEASE_NOTES_HEADER.md
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum *.bin > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          PRE=""
+          case "$TAG" in *-*) PRE="--prerelease";; esac
+          gh release create "$TAG" dist/* $PRE \
+            --title "$TAG" \
+            --notes-file k4pro/RELEASE_NOTES_HEADER.md \
+            --generate-notes

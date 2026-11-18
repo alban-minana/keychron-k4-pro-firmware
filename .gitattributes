@@ -94,3 +94,7 @@ GRAPHICS
 *.hex binary
 *.eep binary
 nix/sources.nix linguist-generated=true
+
+# Community firmware tooling
+k4pro/*.sh text eol=lf
+.github/** text eol=lf
