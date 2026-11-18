@@ -260,8 +260,11 @@ static void bluetooth_enter_pin_code_entry(void) {
 
 /* Exit pin code entry state. */
 static void bluetooth_exit_pin_code_entry(void) {
-#if defined(NKRO_ENABLE)
-    keymap_config.nkro = true;
+#if defined(NKRO_ENABLE) && defined(BLUETOOTH_NKRO_ENABLE)
+    /* FIX: restore the user's NKRO choice instead of forcing it on */
+    keymap_config.nkro = nkro.bluetooth;
+#elif defined(NKRO_ENABLE)
+    keymap_config.nkro = false;
 #endif
     pincodeEntry = false;
     bluetooth_exit_pin_code_entry_kb();
@@ -277,7 +280,8 @@ __attribute__((weak)) void bluetooth_exit_pin_code_entry_kb(void){};
 
 /*  */
 static void bluetooth_hid_set_protocol(bool report_protocol) {
-    bluetooth_report_protocol = false;
+    /* FIX (latent, the CKBT51 driver never emits this event): honour the argument */
+    bluetooth_report_protocol = report_protocol;
 }
 
 uint8_t bluetooth_keyboard_leds(void) {
@@ -322,7 +326,15 @@ void bluetooth_send_keyboard(report_keyboard_t *report) {
             // #ifdef KEYBOARD_SHARED_EP
             if (bluetooth_transport.send_keyboard) {
 #ifndef DISABLE_REPORT_BUFFER
-                if (report_buffer_is_empty() && report_buffer_next_inverval()) {
+                /* FIX: the direct-send fast path did not record what it sent. When the module
+                 * answered "FIFO full", report_buffer_task() re-sent kb_rpt, i.e. an OLDER report,
+                 * and the rejected one (often a key release) was lost -> stuck / repeating key
+                 * until the next key event. A pending retry could also re-send an old report
+                 * after this newer one. Now: no fast path while a retry is pending, and kb_rpt
+                 * always holds the last report actually sent. */
+                if (report_buffer_is_empty() && report_buffer_next_inverval() && report_buffer_get_retry() == 0) {
+                    kb_rpt.type = REPORT_TYPE_KB;
+                    memcpy(&kb_rpt.keyboard, report, sizeof(report_keyboard_t));
                     bluetooth_transport.send_keyboard(&report->mods);
                     report_buffer_update_timer();
                 } else {
@@ -362,7 +374,10 @@ void bluetooth_send_system(uint16_t data) {
 void bluetooth_send_consumer(uint16_t data) {
     if (bt_state == BLUETOOTH_CONNECTED) {
 #ifndef DISABLE_REPORT_BUFFER
-        if (report_buffer_is_empty() && report_buffer_next_inverval()) {
+        if (report_buffer_is_empty() && report_buffer_next_inverval() && report_buffer_get_retry() == 0) {
+            /* FIX: same stale-retry issue as the keyboard fast path (see bluetooth_send_keyboard) */
+            kb_rpt.type     = REPORT_TYPE_CONSUMER;
+            kb_rpt.consumer = data;
             if (bluetooth_transport.send_consumer) bluetooth_transport.send_consumer(data);
             report_buffer_update_timer();
         } else {

@@ -107,6 +107,14 @@ enum {
 static uint8_t payload[PACKET_MAX_LEN];
 static uint8_t reg_offset = 0xFF;
 
+#ifdef CKBT51_SMART_WAKE
+#    ifndef CKBT51_WAKE_SKIP_MS
+#        define CKBT51_WAKE_SKIP_MS 1500
+#    endif
+static uint32_t ckbt51_last_tx    = 0;
+static bool     ckbt51_uart_awake = false;
+#endif
+
 bluetooth_transport_t bluetooth_transport = {
     ckbt51_init,
     ckbt51_connect,
@@ -123,6 +131,12 @@ bluetooth_transport_t bluetooth_transport = {
 void ckbt51_init(bool wakeup_from_low_power_mode) {
 #if (HAL_USE_SERIAL == TRUE)
     SerialConfig config = {460800, 0, USART_CR2_STOP1_BITS, 0};
+
+#    ifdef CKBT51_SMART_WAKE
+    /* After boot or MCU low-power wakeup the module UART may be asleep and the
+     * system timer has been reset: always send the full wake sequence next time. */
+    ckbt51_uart_awake = false;
+#    endif
 
     if (wakeup_from_low_power_mode) {
         sdInit();
@@ -151,13 +165,23 @@ void ckbt51_send_cmd(uint8_t* payload, uint8_t len, bool ack_enable, bool retry)
 
     systime_t start = 0;
 
-    for (i = 0; i < 3; i++) {
-        writePin(CKBT51_INT_INPUT_PIN, i % 2);
-        start = chVTGetSystemTime();
-        while (chTimeI2US(chVTTimeElapsedSinceX(start)) < CKBT51_WAKE_WAIT_TIME / 3) {
-        };
+#ifdef CKBT51_SMART_WAKE
+    /* IMPROVEMENT: the module only powers its UART down after 3 s of inactivity, so the
+     * blocking 3 ms wake sequence is only needed when nothing was sent recently.
+     * Restricted to HID report commands (0x1X), which are only sent while connected;
+     * connection/config commands always get the full wake sequence. */
+    bool skip_wake = ckbt51_uart_awake && (payload[0] & 0xF0) == 0x10 && sync_timer_elapsed32(ckbt51_last_tx) <= CKBT51_WAKE_SKIP_MS;
+    if (!skip_wake)
+#endif
+    {
+        for (i = 0; i < 3; i++) {
+            writePin(CKBT51_INT_INPUT_PIN, i % 2);
+            start = chVTGetSystemTime();
+            while (chTimeI2US(chVTTimeElapsedSinceX(start)) < CKBT51_WAKE_WAIT_TIME / 3) {
+            };
+        }
+        writePinHigh(CKBT51_INT_INPUT_PIN);
     }
-    writePinHigh(CKBT51_INT_INPUT_PIN);
 
     uint16_t checksum = 0;
     for (i = 0; i < len; i++)
@@ -175,6 +199,10 @@ void ckbt51_send_cmd(uint8_t* payload, uint8_t len, bool ack_enable, bool retry)
     pkt[i++] = (checksum >> 8) & 0xFF;
 
     sdWrite(&BT_DRIVER, pkt, i);
+#ifdef CKBT51_SMART_WAKE
+    ckbt51_last_tx    = sync_timer_read32();
+    ckbt51_uart_awake = true;
+#endif
 }
 
 void ckbt51_send_keyboard(uint8_t* report) {
@@ -525,6 +553,10 @@ static void ckbt51_event_handler(uint8_t evt_type, uint8_t* data, uint8_t len, u
             dprintf("CKBT51_EVT_CONNECTION %d\n", data[0]);
             /* Only connection status change message will retry 2 times if no ack  */
             ckbt51_send_conn_evt_ack();
+#ifdef CKBT51_SMART_WAKE
+            /* Module power state may change with the connection state: wake it fully next time */
+            ckbt51_uart_awake = false;
+#endif
             switch (data[0]) {
                 case CKBT51_CONNECTED:
                     event.evt_type = EVT_CONNECTED;
@@ -588,7 +620,9 @@ void ckbt51_task(void) {
                     buf[i] = sdGet(&BT_DRIVER);
                 }
                 // Check wheather len is valid
-                if ((~buf[0] & 0xFF) == buf[1]) {
+                /* FIX: also bound the length. A corrupted header with len > 32 overflowed the
+                 * 32-byte stack buffer below; len < 3 underflowed "len - 3". */
+                if ((~buf[0] & 0xFF) == buf[1] && buf[0] >= 3 && buf[0] <= 32) {
                     len = buf[0];
                     sn  = buf[2];
 
