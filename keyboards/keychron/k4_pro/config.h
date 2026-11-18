@@ -48,6 +48,11 @@
 #        define CONNECTED_BACKLIGHT_DISABLE_TIMEOUT 180
 #    endif
 
+/* Fn+B battery animation: time per 10 % step in ms (stock: 150, i.e. 1.5 s to fill). */
+#    ifndef BAT_LEVEL_GROWING_INTERVAL
+#        define BAT_LEVEL_GROWING_INTERVAL 50
+#    endif
+
 /* Keep the keys typed while the keyboard reconnects (e.g. the key that woke it up)
  * and send them once connected, if that happens within this many ms. 0 = disabled. */
 #    ifndef BT_WAKE_KEY_BUFFER_MS
