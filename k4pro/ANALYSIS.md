@@ -48,7 +48,7 @@ Main consumers: the RGB backlight (by far), the CKBT51 radio, then the MCU.
 | Faster matrix scan | Done |
 | BT idle disconnect (`connected_idle_timeout` 7200 s) | Open — trade-off with first-keystroke latency |
 | STOP2 instead of STOP1 | Not planned — µA-level gain, negligible vs. the radio |
-| Non-linear Li-ion voltage → % curve | Planned |
+| Non-linear Li-ion voltage → % curve | Done — lookup table + interpolation (`battery.c`) |
 | Report battery level to the host OS | Planned |
 
 ## Not fixable here

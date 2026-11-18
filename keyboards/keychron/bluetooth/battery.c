@@ -51,17 +51,35 @@ uint16_t battery_get_voltage(void) {
     return voltage;
 }
 
+/* IMPROVEMENT: the stock code mapped 3.5-4.1 V linearly to 20-100 %, which is far from
+ * a real Li-ion discharge curve (the long plateau around 3.7-3.8 V holds most of the
+ * capacity), so the displayed level dropped fast at first and then stalled.
+ * Typical 1S Li-ion curve under light load, linearly interpolated between points.
+ * The low battery / shutdown thresholds (EMPTY/SHUTDOWN_VOLTAGE_VALUE) are unchanged. */
+typedef struct {
+    uint16_t mv;
+    uint8_t  percent;
+} battery_curve_point_t;
+
+static const battery_curve_point_t battery_curve[] = {
+    {4150, 100}, {4050, 90}, {3970, 80}, {3900, 70}, {3840, 60}, {3800, 50},
+    {3770, 40},  {3740, 30}, {3700, 20}, {3620, 10}, {3500, 5},  {3300, 0},
+};
+
 uint8_t battery_get_percentage(void) {
-    if (voltage > FULL_VOLTAGE_VALUE) return 100;
+    const uint8_t n = sizeof(battery_curve) / sizeof(battery_curve[0]);
 
-    if (voltage > EMPTY_VOLTAGE_VALUE) {
-        return ((uint32_t)voltage - EMPTY_VOLTAGE_VALUE) * 80 / (FULL_VOLTAGE_VALUE - EMPTY_VOLTAGE_VALUE) + 20;
+    if (voltage >= battery_curve[0].mv) return 100;
+    if (voltage <= battery_curve[n - 1].mv) return 0;
+
+    for (uint8_t i = 1; i < n; i++) {
+        if (voltage >= battery_curve[i].mv) {
+            const battery_curve_point_t *hi = &battery_curve[i - 1];
+            const battery_curve_point_t *lo = &battery_curve[i];
+            return lo->percent + (uint32_t)(voltage - lo->mv) * (hi->percent - lo->percent) / (hi->mv - lo->mv);
+        }
     }
-
-    if (voltage > SHUTDOWN_VOLTAGE_VALUE) {
-        return ((uint32_t)voltage - SHUTDOWN_VOLTAGE_VALUE) * 20 / (EMPTY_VOLTAGE_VALUE - SHUTDOWN_VOLTAGE_VALUE);
-    } else
-        return 0;
+    return 0;
 }
 
 bool battery_is_empty(void) {

@@ -36,6 +36,7 @@ fewer Bluetooth bugs, better battery life.**
 ### Battery
 - Backlight turns off after **3 min** idle on Bluetooth (stock: 10 min). The MCU can only sleep once the backlight is off, so this is the biggest lever.
 - Less CPU time per key press (no 3 ms busy-wait, faster scan).
+- **Accurate battery level** (<kbd>Fn</kbd>+<kbd>B</kbd>): real Li-ion discharge curve instead of a linear 3.5–4.1 V mapping.
 
 Full technical write-up: [k4pro/ANALYSIS.md](k4pro/ANALYSIS.md).
 
