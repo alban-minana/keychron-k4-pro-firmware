@@ -2,7 +2,7 @@
 
 Source reviewed: [Keychron/qmk_firmware](https://github.com/Keychron/qmk_firmware), branch `bluetooth_playground`
 (last K4 Pro commit: 2024-12-07), on a QMK base from early 2023. Every bug below is still present in
-Keychron's newer branch `wls_2025q1` (September 2025, QMK 2025), which this firmware is now based on.
+Keychron's newer branch `wls_2025q1` (September 2025, QMK 0.28). This firmware starts from that branch, merged with upstream QMK 0.34.8.
 
 ## Hardware, as seen from the code
 
@@ -56,7 +56,8 @@ Main consumers: the RGB backlight (by far), the CKBT51 radio, then the MCU.
 ## Not fixable here
 
 - CKBT51 firmware (radio stability, range, reconnection speed) is closed.
-- The firmware is based on Keychron's `wls_2025q1` branch (QMK 2025). The K4 Pro still uses Keychron's older CKBT51 Bluetooth stack there.
+- The firmware is based on Keychron's `wls_2025q1` branch merged with upstream QMK 0.34.8. The K4 Pro still uses Keychron's older CKBT51 Bluetooth stack.
+- QMK 0.34 adaptations: new eeconfig and GPIO APIs, `debounce_free()` removed, raw HID routed through the host driver (forwarded to USB in Bluetooth mode so VIA / Launcher keep working), `rtc_timer.c` include order. Keychron's adaptive NKRO and dynamic keymap buffer (core patches the K4 Pro does not use) were dropped; their RGB/LED matrix timeout and driver shutdown patches were kept.
 
 ## Keychron Launcher compatibility
 

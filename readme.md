@@ -6,7 +6,7 @@
   <a href="license_GPLv2.md"><img src="https://img.shields.io/badge/license-GPL--2.0%2B-18181b?style=flat-square" alt="License"></a>
 </p>
 
-Unofficial firmware for the **Keychron K4 Pro**: ISO and ANSI, RGB and white. It is built on Keychron's 2025 open-source QMK code, stays compatible with VIA, and you can go back to stock at any time.
+Unofficial firmware for the **Keychron K4 Pro**: ISO and ANSI, RGB and white. It is built on Keychron's open-source code and QMK 0.34, stays compatible with VIA, and you can go back to stock at any time.
 
 #### Why
 

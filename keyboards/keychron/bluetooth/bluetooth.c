@@ -95,7 +95,23 @@ void    bluetooth_send_mouse(report_mouse_t *report);
 void    bluetooth_send_extra(report_extra_t *report);
 
 /* host struct */
-host_driver_t bluetooth_driver = {bluetooth_keyboard_leds, bluetooth_send_keyboard, bluetooth_send_nkro, bluetooth_send_mouse, bluetooth_send_extra};
+#ifdef RAW_ENABLE
+/* FIX (QMK >= 0.29): raw HID now goes through the active host driver. VIA / Keychron
+ * Launcher talk over the USB cable even in Bluetooth mode (the USB connection is kept),
+ * so forward raw HID to the USB driver instead of dropping it. */
+void send_raw_hid(uint8_t *data, uint8_t length);
+#endif
+
+host_driver_t bluetooth_driver = {
+    .keyboard_leds = bluetooth_keyboard_leds,
+    .send_keyboard = bluetooth_send_keyboard,
+    .send_nkro     = bluetooth_send_nkro,
+    .send_mouse    = bluetooth_send_mouse,
+    .send_extra    = bluetooth_send_extra,
+#ifdef RAW_ENABLE
+    .send_raw_hid = send_raw_hid,
+#endif
+};
 
 #define BLUETOOTH_EVENT_QUEUE_SIZE 16
 bluetooth_event_t bt_event_queue[BLUETOOTH_EVENT_QUEUE_SIZE];
@@ -148,7 +164,7 @@ void bluetooth_init(void) {
     rtc_timer_init();
 
 #ifdef BLUETOOTH_NKRO_ENABLE
-    keymap_config.raw = eeconfig_read_keymap();
+    eeconfig_read_keymap(&keymap_config);
     nkro.bluetooth    = keymap_config.nkro;
 #endif
 }
