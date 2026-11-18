@@ -6,13 +6,13 @@
   <a href="license_GPLv2.md"><img src="https://img.shields.io/badge/license-GPL--2.0%2B-18181b?style=flat-square" alt="License"></a>
 </p>
 
-Unofficial firmware for the **Keychron K4 Pro**: ISO and ANSI, RGB and white. It is built on Keychron's open-source QMK code, stays compatible with VIA, and you can go back to stock at any time.
+Unofficial firmware for the **Keychron K4 Pro**: ISO and ANSI, RGB and white. It is built on Keychron's 2025 open-source QMK code, stays compatible with VIA, and you can go back to stock at any time.
 
 #### Why
 
 - **Lower latency**: keys are sent on first contact, and Bluetooth runs at 133 Hz.
 - **Bluetooth fixes**: no more stuck or repeating keys, and no lost key on wake-up.
-- **Better battery**: the backlight turns off sooner, and the battery level shows up on your computer.
+- **Better battery**: the backlight turns off sooner and the battery percentage is accurate.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="k4pro/docs/latency-dark.svg">
@@ -47,7 +47,7 @@ Unofficial firmware for the **Keychron K4 Pro**: ISO and ANSI, RGB and white. It
 | Matrix scan | 2 shift-register writes per column | 1 write per column |
 | Key pressed during reconnect | Lost | Sent once connected (≤ 3 s) |
 | Backlight off on battery | 10 min | 3 min |
-| Battery % | Linear estimate, not shared | Li-ion curve, shown on your computer |
+| Battery % (<kbd>Fn</kbd>+<kbd>B</kbd>) | Linear estimate | Li-ion curve, faster animation |
 
 **Fixed bugs**
 - Stuck or repeating keys over Bluetooth after a full module buffer
@@ -69,7 +69,7 @@ Options live at the top of [`keyboards/keychron/k4_pro/config.h`](keyboards/keyc
 | `CKBT51_SMART_WAKE` | on | Disable if letters go missing over Bluetooth |
 | `CONNECTED_BACKLIGHT_DISABLE_TIMEOUT` | `180` | Backlight off delay on battery (s) |
 | `BT_WAKE_KEY_BUFFER_MS` | `3000` | Keep keys typed during reconnect (`0` = off) |
-| `BT_REPORT_BATTERY_LEVEL` | on | Share the battery level with the computer |
+| `BT_REPORT_BATTERY_LEVEL` | on | Send the battery level to the Bluetooth module (experimental: not shown by Windows) |
 
 #### Build
 
