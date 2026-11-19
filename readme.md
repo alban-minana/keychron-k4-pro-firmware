@@ -10,13 +10,13 @@ Unofficial firmware for the **Keychron K4 Pro**: ISO and ANSI, RGB and white. It
 
 #### Why
 
-- **Lower latency**: keys are sent on first contact, and Bluetooth runs at 133 Hz.
+- **Lower latency**: keys are sent on first contact, key scanning never pauses for more than ~2 ms, and Bluetooth runs at 133 Hz.
 - **Bluetooth fixes**: no more stuck or repeating keys, and no lost key on wake-up.
 - **Better battery**: the backlight turns off sooner and the battery percentage is accurate.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="k4pro/docs/latency-dark.svg">
-  <img src="k4pro/docs/latency-light.svg" alt="Worst-case delay per key press: USB 6.5 ms to 1.3 ms, Bluetooth 19.6 ms to 7.8 ms" width="100%">
+  <img src="k4pro/docs/latency-light.svg" alt="Longest pause in key scanning, measured: USB 9.0 ms to 1.4 ms, Bluetooth 9.0 ms to 1.8 ms" width="100%">
 </picture>
 
 #### Install
@@ -102,15 +102,16 @@ py k4pro/tools/k4tool.py ab-flush   # stock vs incremental LED flush, toggled li
 py k4pro/tools/k4tool.py profile    # longest run of each firmware section, in microseconds
 ```
 
-Measured on an ISO RGB board (v0.6.0, RGB effect on, 600 taps per row, PC request to key in Windows):
+Measured on an ISO RGB board (RGB effect on, PC request to key in Windows; switch travel and debounce not included):
 
-| | Median | 95 % under | Worst |
+| | Median | 95 % under | Longest firmware pause |
 |---|---|---|---|
-| USB, stock LED flush | 2.4 ms | 8.9 ms | 9.9 ms |
-| USB, this firmware | 2.2 ms | 3.4 ms | 3.5 ms |
-| Bluetooth, this firmware | 12.7 ms | 24 ms | 35 ms |
+| USB, stock LED refresh (v0.5.0) | 2.4 ms | 8.9 ms | 9 ms |
+| USB, v0.7.0 | 2.0 ms | 2.9 ms | 1.4 ms |
+| Bluetooth, stock LED refresh and battery read (v0.5.0) | 13.6 ms | 24 ms | 9 ms |
+| Bluetooth, v0.7.0 | 12.1 ms | 23 ms | 1.8 ms |
 
-Longest pause of the main loop in Bluetooth mode (`profile`, 500 taps): 5.7 ms in v0.6.0, 1.8 ms in v0.7.0.
+Bluetooth latency is mostly the radio link itself; the firmware side is now a small part of it.
 
 #### Hardware
 
