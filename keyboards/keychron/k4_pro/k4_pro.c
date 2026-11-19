@@ -253,14 +253,44 @@ void ckbt51_default_ack_handler(uint8_t *data, uint8_t len) {
     }
 }
 
-void bluetooth_pre_task(void) {
-    static uint8_t mode = 1;
+/* FIX: the Cable/BT slider was "debounced" by reading the pin twice in a row, which
+ * filters nothing: contact bounce while sliding could switch USB -> BT -> USB and restart
+ * a connection. A new position is now applied only once it has been stable for
+ * MODE_SWITCH_DEBOUNCE_MS. The very first read at boot is applied immediately. */
+#    ifndef MODE_SWITCH_DEBOUNCE_MS
+#        define MODE_SWITCH_DEBOUNCE_MS 20
+#    endif
 
-    if (gpio_read_pin(USB_BT_MODE_SELECT_PIN) != mode) {
-        if (gpio_read_pin(USB_BT_MODE_SELECT_PIN) != mode) {
-            mode = gpio_read_pin(USB_BT_MODE_SELECT_PIN);
+void bluetooth_pre_task(void) {
+    static uint8_t  mode    = 1;
+    static uint8_t  pending = 1;
+    static uint32_t timer   = 0;
+    static bool     first   = true;
+
+    uint8_t now = gpio_read_pin(USB_BT_MODE_SELECT_PIN);
+
+    if (first) {
+        first = false;
+        if (now != mode) {
+            mode = now;
             set_transport(mode == 0 ? TRANSPORT_BLUETOOTH : TRANSPORT_USB);
         }
+        return;
+    }
+
+    if (now == mode) {
+        timer = 0;
+        return;
+    }
+    if (timer == 0 || now != pending) {
+        pending = now;
+        timer   = sync_timer_read32() | 1;
+        return;
+    }
+    if (sync_timer_elapsed32(timer) >= MODE_SWITCH_DEBOUNCE_MS) {
+        timer = 0;
+        mode  = now;
+        set_transport(mode == 0 ? TRANSPORT_BLUETOOTH : TRANSPORT_USB);
     }
 }
 #endif

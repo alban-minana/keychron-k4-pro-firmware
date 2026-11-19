@@ -159,12 +159,87 @@ inline void indicator_disable(void) {
     LED_DRIVER_DISABLE_NOEEPROM();
 }
 
+/* IMPROVEMENT: dim the backlight shortly before the battery timeout turns it off, so
+ * it does not cut out abruptly. Only the in-RAM brightness is lowered (never written to
+ * EEPROM) and it is restored before any key is processed. */
+#    ifndef BACKLIGHT_DIM_LEAD_MS
+#        define BACKLIGHT_DIM_LEAD_MS 10000 // start dimming this long before the timeout
+#    endif
+#    ifndef BACKLIGHT_DIM_PERCENT
+#        define BACKLIGHT_DIM_PERCENT 30 // dimmed brightness, % of the user's setting
+#    endif
+#    ifndef BACKLIGHT_DIM_FADE_MS
+#        define BACKLIGHT_DIM_FADE_MS 1000 // length of the fade down
+#    endif
+#    define BACKLIGHT_DIM_MIN_TIMEOUT (2 * BACKLIGHT_DIM_LEAD_MS)
+
+#    ifdef RGB_MATRIX_ENABLE
+#        define LED_DRIVER_VAL rgb_matrix_config.hsv.v
+#    else
+#        define LED_DRIVER_VAL led_matrix_eeconfig.val
+#    endif
+
+static uint32_t backlit_timeout = UINT32_MAX;
+static bool     dim_active      = false;
+static uint8_t  dim_saved_val   = 0;
+static uint8_t  dim_last_val    = 0;
+
 void indicator_set_backlit_timeout(uint32_t time) {
+    backlit_timeout = time;
     LED_DRIVER_DISABLE_TIMEOUT_SET(time);
 }
 
 static inline void indicator_reset_backlit_time(void) {
     LED_DRIVER_DISABLE_TIME_RESET();
+}
+
+static void indicator_backlit_dim_restore(void) {
+    if (!dim_active) return;
+    dim_active = false;
+    /* If something else set a new brightness meanwhile (VIA, EEPROM reload), keep it. */
+    if (LED_DRIVER_VAL == dim_last_val) LED_DRIVER_VAL = dim_saved_val;
+}
+
+static void indicator_backlit_dim_task(void) {
+    uint32_t timeout = backlit_timeout;
+
+    if (timeout < BACKLIGHT_DIM_MIN_TIMEOUT || timeout > (UINT32_MAX / 2) || get_transport() != TRANSPORT_BLUETOOTH || !LED_DRIVER_IS_ENABLED()) {
+        indicator_backlit_dim_restore();
+        return;
+    }
+
+    uint32_t elapsed = last_input_activity_elapsed();
+    uint32_t start   = timeout - BACKLIGHT_DIM_LEAD_MS;
+
+    if (elapsed < start) {
+        indicator_backlit_dim_restore();
+        return;
+    }
+    if (elapsed >= timeout) return; // backlight is off now; restored on the next key
+
+    if (!dim_active) {
+        dim_active    = true;
+        dim_saved_val = LED_DRIVER_VAL;
+        dim_last_val  = dim_saved_val;
+    } else if (LED_DRIVER_VAL != dim_last_val) {
+        dim_active = false; // brightness changed by something else: stop dimming
+        return;
+    }
+
+    uint32_t t = elapsed - start;
+    if (t > BACKLIGHT_DIM_FADE_MS) t = BACKLIGHT_DIM_FADE_MS;
+    uint8_t target = (uint32_t)dim_saved_val * BACKLIGHT_DIM_PERCENT / 100;
+    uint8_t val    = dim_saved_val - (uint32_t)(dim_saved_val - target) * t / BACKLIGHT_DIM_FADE_MS;
+
+    LED_DRIVER_VAL = val;
+    dim_last_val   = val;
+}
+
+bool pre_process_record_kb(uint16_t keycode, keyrecord_t *record) {
+    /* Restore the full brightness before the key is handled, so a brightness key pressed
+     * while dimmed starts from (and saves) the user's real setting. */
+    indicator_backlit_dim_restore();
+    return pre_process_record_user(keycode, record);
 }
 
 bool indicator_is_enabled(void) {
@@ -475,6 +550,10 @@ void indicator_task(void) {
     }
 
     indicator_battery_low();
+
+#if defined(LED_MATRIX_ENABLE) || defined(RGB_MATRIX_ENABLE)
+    indicator_backlit_dim_task();
+#endif
 }
 
 #if defined(LED_MATRIX_ENABLE) || defined(RGB_MATRIX_ENABLE)
