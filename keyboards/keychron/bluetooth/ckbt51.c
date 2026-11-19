@@ -21,6 +21,7 @@
 #include "battery.h"
 #include "raw_hid.h"
 #include "report_buffer.h"
+#include "diag.h"
 
 #ifndef RAW_EPSIZE
 #    define RAW_EPSIZE 32
@@ -218,6 +219,7 @@ void ckbt51_send_keyboard(uint8_t* report) {
     memcpy(payload + i, report, 8);
     i += 8;
 
+    DIAG_INC(bt_reports);
     ckbt51_send_cmd(payload, i, true, false);
 }
 
@@ -229,6 +231,7 @@ void ckbt51_send_nkro(uint8_t* report) {
     memcpy(payload + i, report, 20); // NKRO report lenght is limited to 20 bytes
     i += 20;
 
+    DIAG_INC(bt_reports);
     ckbt51_send_cmd(payload, i, true, false);
 }
 
@@ -241,6 +244,7 @@ void ckbt51_send_consumer(uint16_t report) {
     payload[i++] = ((report) >> 8) & 0xFF;
     i += 4; // QMK doesn't send multiple consumer reports, just skip 2nd and 3rd consumer reports
 
+    DIAG_INC(bt_reports);
     ckbt51_send_cmd(payload, i, true, false);
 }
 
@@ -254,6 +258,7 @@ void ckbt51_send_system(uint16_t report) {
     payload[i++] = CKBT51_CMD_SEND_SYSTEM;
     payload[i++] = 0x01 << ((report & 0xFF) - 0x82);
 
+    DIAG_INC(bt_reports);
     ckbt51_send_cmd(payload, i, true, false);
 }
 
@@ -524,6 +529,7 @@ static void ack_handler(uint8_t* data, uint8_t len) {
                     break;
                 case ACK_FIFO_FULL_ERROR:
                     report_buffer_set_retry(10);
+                    DIAG_INC(bt_fifo_full);
                     break;
             }
             break;

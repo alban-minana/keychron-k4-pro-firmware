@@ -31,6 +31,7 @@
 #include "lpm.h"
 #include "transport.h"
 #include "battery.h"
+#include "diag.h"
 
 extern matrix_row_t          matrix[MATRIX_ROWS];
 extern bluetooth_transport_t bluetooth_transport;
@@ -88,5 +89,8 @@ void lpm_task(void) {
 #endif
         && !lpm_any_matrix_action() && !battery_power_on_sample())
 
+    {
+        DIAG_INC(sleeps);
         enter_power_mode(LOW_POWER_MODE);
+    }
 }

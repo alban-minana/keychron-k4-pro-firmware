@@ -23,6 +23,7 @@
 #    include "battery.h"
 #    include "bat_level_animation.h"
 #    include "lpm.h"
+#    include "diag.h"
 #endif
 
 #ifdef ENABLE_FACTORY_TEST
@@ -58,6 +59,11 @@ bool                   bt_factory_reset = false;
 #    define PAIRING_KEY_HOLD_MS 2000
 static uint32_t pairing_key_timer = 0;
 static uint8_t  pairing_host_idx  = 0;
+
+/* Bluetooth link is dropped after this many seconds without a key (module power saving). */
+#    ifndef BT_IDLE_DISCONNECT_S
+#        define BT_IDLE_DISCONNECT_S 7200
+#    endif
 
 #    ifndef CKBT51_REPORT_RATE
 #        define CKBT51_REPORT_RATE 90
@@ -200,6 +206,10 @@ void matrix_scan_kb(void) {
     }
 #endif
 
+#ifdef KC_BLUETOOTH_ENABLE
+    diag_task();
+#endif
+
 #ifdef FACTORY_RESET_TASK
     FACTORY_RESET_TASK();
 #endif
@@ -213,7 +223,7 @@ static void ckbt51_param_init(void) {
     ckbt51_set_local_name(PRODUCT);
     /* Set bluetooth parameters */
     module_param_t param = {.event_mode             = 0x02,
-                            .connected_idle_timeout = 7200,
+                            .connected_idle_timeout = BT_IDLE_DISCONNECT_S,
                             .pairing_timeout        = 180,
                             .pairing_mode           = 0,
                             .reconnect_timeout      = 5,
@@ -241,7 +251,7 @@ void bluetooth_enter_disconnected_kb(uint8_t host_idx) {
 void ckbt51_default_ack_handler(uint8_t *data, uint8_t len) {
     if (data[1] == 0x45) {
         module_param_t param = {.event_mode             = 0x02,
-                                .connected_idle_timeout = 7200,
+                                .connected_idle_timeout = BT_IDLE_DISCONNECT_S,
                                 .pairing_timeout        = 180,
                                 .pairing_mode           = 0,
                                 .reconnect_timeout      = 5,
@@ -317,6 +327,9 @@ void battery_calculte_voltage(uint16_t value) {
 bool via_command_kb(uint8_t *data, uint8_t length) {
     switch (data[0]) {
 #ifdef KC_BLUETOOTH_ENABLE
+        case DIAG_RAW_HID_ID:
+            diag_rx(data, length);
+            break;
         case 0xAA:
             ckbt51_dfu_rx(data, length);
             break;

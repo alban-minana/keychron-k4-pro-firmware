@@ -16,6 +16,7 @@
 
 #include "quantum.h"
 #include "report_buffer.h"
+#include "diag.h"
 #include "bluetooth.h"
 #include "lpm.h"
 
@@ -119,6 +120,7 @@ void report_buffer_task(void) {
         } else {
             if (sync_timer_elapsed32(retry_time_buffer) > 7) {
                 pending_data = true;
+                DIAG_INC(bt_retries);
                 --retry;
                 retry_time_buffer = sync_timer_read32();
             }
