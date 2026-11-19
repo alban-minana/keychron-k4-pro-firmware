@@ -155,6 +155,7 @@ class KeyHook:
 
     def __init__(self):
         self.events = queue.Queue()
+        self._procs = []
         threading.Thread(target=self._run, daemon=True).start()
 
     def _run(self):
@@ -168,12 +169,19 @@ class KeyHook:
                     return 1
             return user32.CallNextHookEx(None, code, wparam, lparam)
 
-        self._proc = HOOKPROC(proc)
-        if not user32.SetWindowsHookExW(13, self._proc, kernel32.GetModuleHandleW(None), 0):
+        cb = HOOKPROC(proc)
+        self._procs.append(cb)  # keep every callback alive, an old hook may still call it
+        if not user32.SetWindowsHookExW(13, cb, kernel32.GetModuleHandleW(None), 0):
             raise OSError(ctypes.get_last_error(), "SetWindowsHookEx failed")
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
             pass
+
+    def reinstall(self):
+        """Windows silently drops a low-level hook that once answered too slowly
+        (LowLevelHooksTimeout). Install a fresh one on the same queue."""
+        threading.Thread(target=self._run, daemon=True).start()
+        time.sleep(0.2)
 
     def get(self, timeout):
         try:
@@ -321,6 +329,7 @@ def measure(kb, hook, count, quiet=False):
                 break
         if not got_down:
             lost += 1
+            hook.reinstall()  # a missed probe is almost always a dropped hook on the PC side
         kb.drain()
         time.sleep(random.uniform(0.02, 0.05))  # random gap: no lock-step with the radio interval
         if (n + 1) % 100 == 0:
