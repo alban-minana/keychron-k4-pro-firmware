@@ -46,6 +46,7 @@ Unofficial firmware for the **Keychron K4 Pro**: ISO and ANSI, RGB and white. It
 | Bluetooth send | 3 ms pause before each report | Pause only after 1.5 s idle |
 | Matrix scan | 2 shift-register writes per column | 1 write per column |
 | LED refresh | Sent in one block, keys not read for up to 9 ms | Sent in small pieces between scans |
+| Battery read (Bluetooth) | 3 ms pause every few seconds | No pause while typing |
 | Key pressed during reconnect | Lost | Sent once connected (≤ 3 s) |
 | Backlight off on battery | 10 min, cuts out | 3 min, dims 10 s before |
 | Battery % (<kbd>Fn</kbd>+<kbd>B</kbd>) | Linear estimate | Li-ion curve, faster animation |
@@ -77,6 +78,7 @@ Options live at the top of [`keyboards/keychron/k4_pro/config.h`](keyboards/keyc
 | `BT_REPORT_BATTERY_LEVEL` | on | Send the battery level to the Bluetooth module (experimental: not shown by Windows) |
 | `BT_IDLE_DISCONNECT_S` | `7200` | Bluetooth disconnects after this idle time (s) |
 | `SNLED27351_INCREMENTAL_FLUSH` | on | Send the LED frame in small pieces (remove to restore stock) |
+| `SNLED27351_FLUSH_CHUNKS_PER_STEP` | `1` | LED transfers per main-loop pass (higher = smoother LEDs, longer pauses) |
 
 #### Build
 
@@ -97,6 +99,7 @@ py k4pro/tools/k4tool.py info       # connection, battery, scan rate, settings, 
 py k4pro/tools/k4tool.py watch      # live dashboard + double-type detector
 py k4pro/tools/k4tool.py latency    # 300 key taps, median / p95 / max latency
 py k4pro/tools/k4tool.py ab-flush   # stock vs incremental LED flush, toggled live
+py k4pro/tools/k4tool.py profile    # longest run of each firmware section, in microseconds
 ```
 
 Measured on an ISO RGB board (v0.6.0, RGB effect on, 600 taps per row, PC request to key in Windows):
@@ -106,6 +109,8 @@ Measured on an ISO RGB board (v0.6.0, RGB effect on, 600 taps per row, PC reques
 | USB, stock LED flush | 2.4 ms | 8.9 ms | 9.9 ms |
 | USB, this firmware | 2.2 ms | 3.4 ms | 3.5 ms |
 | Bluetooth, this firmware | 12.7 ms | 24 ms | 35 ms |
+
+Longest pause of the main loop in Bluetooth mode (`profile`, 500 taps): 5.7 ms in v0.6.0, 1.8 ms in v0.7.0.
 
 #### Hardware
 
