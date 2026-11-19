@@ -80,6 +80,7 @@ Options live at the top of [`keyboards/keychron/k4_pro/config.h`](keyboards/keyc
 ```sh
 k4pro/build.sh            # all variants, needs Docker
 k4pro/build.sh iso/rgb    # one variant
+make -C k4pro/tests       # unit tests of the board logic, needs only gcc
 ```
 
 GitHub Actions builds every push and pull request. Pushing a `v*` tag publishes a release.
