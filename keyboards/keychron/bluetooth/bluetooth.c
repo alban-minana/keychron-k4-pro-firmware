@@ -23,6 +23,7 @@
 #include "indicator.h"
 #include "transport.h"
 #include "rtc_timer.h"
+#include "diag.h"
 
 extern uint8_t         pairing_indication;
 extern host_driver_t   chibios_driver;
@@ -73,6 +74,7 @@ static void wake_key_buffer_add(report_buffer_t *report) {
      * final state (including key releases) is always the latest one, so no stuck key. */
     if (wake_key_count < BT_WAKE_KEY_BUFFER_SIZE) wake_key_count++;
     wake_key_buffer[wake_key_count - 1] = *report;
+    DIAG_INC(wake_keys);
 }
 
 static void wake_key_buffer_flush(void) {
@@ -266,6 +268,7 @@ static void bluetooth_enter_reconnecting(uint8_t host_idx) {
  */
 static void bluetooth_enter_connected(uint8_t host_idx) {
     bt_state = BLUETOOTH_CONNECTED;
+    DIAG_INC(bt_connects);
     indicator_set(bt_state, host_idx);
     host_index = host_idx;
 
@@ -303,6 +306,7 @@ static void bluetooth_enter_connected(uint8_t host_idx) {
 static void bluetooth_enter_disconnected(uint8_t host_idx) {
     uint8_t previous_state = bt_state;
     bt_state               = BLUETOOTH_DISCONNECTED;
+    DIAG_INC(bt_disconnects);
 
     if (previous_state == BLUETOOTH_CONNECTED) {
         lpm_timer_reset();

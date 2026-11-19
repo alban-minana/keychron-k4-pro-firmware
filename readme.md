@@ -74,6 +74,7 @@ Options live at the top of [`keyboards/keychron/k4_pro/config.h`](keyboards/keyc
 | `CAPS_LOCK_COLOR` / `NUM_LOCK_COLOR` | `0, 255, 0` | Lock key colours on RGB boards (R, G, B) |
 | `BT_WAKE_KEY_BUFFER_MS` | `3000` | Keep keys typed during reconnect (`0` = off) |
 | `BT_REPORT_BATTERY_LEVEL` | on | Send the battery level to the Bluetooth module (experimental: not shown by Windows) |
+| `BT_IDLE_DISCONNECT_S` | `7200` | Bluetooth disconnects after this idle time (s) |
 
 #### Build
 
@@ -83,6 +84,16 @@ k4pro/build.sh iso/rgb    # one variant
 ```
 
 GitHub Actions builds every push and pull request. Pushing a `v*` tag publishes a release.
+
+#### Diagnostics
+
+[`k4pro/tools/k4tool.py`](k4pro/tools/k4tool.py) reads the keyboard over the USB cable (Windows, Python 3, `py -m pip install hidapi`, VIA / Launcher closed). The switch can stay on Bluetooth: keys still go over the radio.
+
+```sh
+py k4pro/tools/k4tool.py info       # connection, battery, scan rate, settings, counters
+py k4pro/tools/k4tool.py watch      # live dashboard + double-type detector
+py k4pro/tools/k4tool.py latency    # 300 key taps, median / p95 / max latency
+```
 
 #### Hardware
 
