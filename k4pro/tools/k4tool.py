@@ -78,7 +78,7 @@ class Keyboard:
         self.dev.write(b"\x00" + bytes([DIAG_ID, CMD_PROBE]) + bytes(PACKET - 2))
 
     def drain(self):
-        while self.dev.read(PACKET, 0):
+        while self.dev.read(PACKET, 1):  # timeout 0 would block in hidapi
             pass
 
     def info(self):
