@@ -6,14 +6,14 @@ THEMES = {
     "light": dict(bg="#ffffff", border="#e4e4e7", text="#09090b", muted="#71717a", old="#e4e4e7", new="#18181b"),
     "dark": dict(bg="#09090b", border="#27272a", text="#fafafa", muted="#a1a1aa", old="#3f3f46", new="#fafafa"),
 }
-ROWS = [("USB", 6.5, 1.3), ("Bluetooth", 19.6, 7.8)]
+ROWS = [("USB", 9.0, 1.4), ("Bluetooth", 9.0, 1.8)]  # longest main-loop pause, measured (k4tool)
 W, H, X0, SCALE = 800, 232, 132, 30  # SCALE: px per ms
 
 for name, t in THEMES.items():
     out = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" '
            f'font-family="Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif">',
            f'<rect x=".5" y=".5" width="{W-1}" height="{H-1}" rx="16" fill="{t["bg"]}" stroke="{t["border"]}"/>',
-           f'<text x="24" y="40" font-size="15" font-weight="600" fill="{t["text"]}">Worst-case delay per key press</text>',
+           f'<text x="24" y="40" font-size="15" font-weight="600" fill="{t["text"]}">Longest pause in key scanning</text>',
            f'<rect x="{W-196}" y="28" width="10" height="10" rx="3" fill="{t["old"]}"/>'
            f'<text x="{W-180}" y="37" font-size="12" fill="{t["muted"]}">Stock</text>',
            f'<rect x="{W-128}" y="28" width="10" height="10" rx="3" fill="{t["new"]}"/>'
@@ -26,7 +26,7 @@ for name, t in THEMES.items():
         out.append(f'<rect x="{X0}" y="{y+24}" width="{new*SCALE:.0f}" height="18" rx="5" fill="{t["new"]}"/>'
                    f'<text x="{X0+new*SCALE+8:.0f}" y="{y+37}" font-size="12" font-weight="600" fill="{t["text"]}">{new} ms</text>')
         y += 64
-    out.append(f'<text x="24" y="{H-18}" font-size="11" fill="{t["muted"]}">Estimated from the source code: debounce, Bluetooth wake-up, report interval, matrix scan.</text>')
+    out.append(f'<text x="24" y="{H-18}" font-size="11" fill="{t["muted"]}">Measured with k4tool on an ISO RGB board. Stock = Keychron&#8217;s LED refresh and battery read, before this firmware.</text>')
     out.append("</svg>\n")
     with open(os.path.join(HERE, f"latency-{name}.svg"), "w", encoding="utf-8", newline="\n") as f:
         f.write("".join(out))
