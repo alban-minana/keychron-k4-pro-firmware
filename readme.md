@@ -48,6 +48,7 @@ Unofficial firmware for the **Keychron K4 Pro**: ISO and ANSI, RGB and white. It
 | Key pressed during reconnect | Lost | Sent once connected (≤ 3 s) |
 | Backlight off on battery | 10 min, cuts out | 3 min, dims 10 s before |
 | Battery % (<kbd>Fn</kbd>+<kbd>B</kbd>) | Linear estimate | Li-ion curve, faster animation |
+| Caps Lock / Num Lock key (RGB) | White | Orange |
 
 **Fixed bugs**
 - Stuck or repeating keys over Bluetooth after a full module buffer
@@ -70,6 +71,7 @@ Options live at the top of [`keyboards/keychron/k4_pro/config.h`](keyboards/keyc
 | `CKBT51_SMART_WAKE` | on | Disable if letters go missing over Bluetooth |
 | `CONNECTED_BACKLIGHT_DISABLE_TIMEOUT` | `180` | Backlight off delay on battery (s) |
 | `BACKLIGHT_DIM_PERCENT` | `30` | Brightness during the 10 s before it turns off |
+| `LOCK_INDICATOR_COLOR` | `255, 64, 0` | Caps / Num Lock colour on RGB boards (R, G, B) |
 | `BT_WAKE_KEY_BUFFER_MS` | `3000` | Keep keys typed during reconnect (`0` = off) |
 | `BT_REPORT_BATTERY_LEVEL` | on | Send the battery level to the Bluetooth module (experimental: not shown by Windows) |
 
