@@ -95,6 +95,7 @@ static pin_t bt_led_pin_list[HOST_DEVICES_COUNT] = BT_INDICATION_LED_PIN_LIST;
 #    define SET_ALL_LED_OFF() led_matrix_set_value_all(0)
 #    define SET_LED_OFF(idx) led_matrix_set_value(idx, 0)
 #    define SET_LED_ON(idx) led_matrix_set_value(idx, 255)
+#    define SET_LED_LOCK(idx, color) led_matrix_set_value(idx, 255)
 #    define SET_LED_BT(idx) led_matrix_set_value(idx, 255)
 #    define SET_LED_LOW_BAT(idx) led_matrix_set_value(idx, 255)
 #    define LED_DRIVER_IS_ENABLED led_matrix_is_enabled
@@ -118,6 +119,18 @@ static pin_t bt_led_pin_list[HOST_DEVICES_COUNT] = BT_INDICATION_LED_PIN_LIST;
 #    define SET_ALL_LED_OFF() rgb_matrix_set_color_all(0, 0, 0)
 #    define SET_LED_OFF(idx) rgb_matrix_set_color(idx, 0, 0, 0)
 #    define SET_LED_ON(idx) rgb_matrix_set_color(idx, 255, 255, 255)
+/* IMPROVEMENT: lock keys light in saturated colours instead of white,
+ * so they stand out from a white or blue backlight. Override in config.h (R, G, B). */
+#    ifndef CAPS_LOCK_COLOR
+#        define CAPS_LOCK_COLOR 0, 255, 0 // green
+#    endif
+#    ifndef NUM_LOCK_COLOR
+#        define NUM_LOCK_COLOR 0, 255, 0 // green
+#    endif
+#    ifndef SCROLL_LOCK_COLOR
+#        define SCROLL_LOCK_COLOR 255, 255, 255
+#    endif
+#    define SET_LED_LOCK(idx, color) rgb_matrix_set_color(idx, color)
 #    define SET_LED_BT(idx) rgb_matrix_set_color(idx, 0, 0, 255)
 #    define SET_LED_LOW_BAT(idx) rgb_matrix_set_color(idx, 255, 0, 0)
 #    define LED_DRIVER_IS_ENABLED rgb_matrix_is_enabled
@@ -560,7 +573,7 @@ void indicator_task(void) {
 __attribute__((weak)) void os_state_indicate(void) {
 #    if defined(NUM_LOCK_INDEX)
     if (host_keyboard_led_state().num_lock) {
-        SET_LED_ON(NUM_LOCK_INDEX);
+        SET_LED_LOCK(NUM_LOCK_INDEX, NUM_LOCK_COLOR);
     }
 #    endif
 #    if defined(CAPS_LOCK_INDEX)
@@ -568,13 +581,13 @@ __attribute__((weak)) void os_state_indicate(void) {
 #        if defined(DIM_CAPS_LOCK)
         SET_LED_OFF(CAPS_LOCK_INDEX);
 #        else
-        SET_LED_ON(CAPS_LOCK_INDEX);
+        SET_LED_LOCK(CAPS_LOCK_INDEX, CAPS_LOCK_COLOR);
 #        endif
     }
 #    endif
 #    if defined(SCROLL_LOCK_INDEX)
     if (host_keyboard_led_state().scroll_lock) {
-        SET_LED_ON(SCROLL_LOCK_INDEX);
+        SET_LED_LOCK(SCROLL_LOCK_INDEX, SCROLL_LOCK_COLOR);
     }
 #    endif
 #    if defined(COMPOSE_LOCK_INDEX)
