@@ -125,7 +125,7 @@ static pin_t bt_led_pin_list[HOST_DEVICES_COUNT] = BT_INDICATION_LED_PIN_LIST;
 #        define CAPS_LOCK_COLOR 0, 255, 0 // green
 #    endif
 #    ifndef NUM_LOCK_COLOR
-#        define NUM_LOCK_COLOR 255, 0, 0 // red
+#        define NUM_LOCK_COLOR 0, 255, 0 // green
 #    endif
 #    ifndef SCROLL_LOCK_COLOR
 #        define SCROLL_LOCK_COLOR 255, 255, 255
