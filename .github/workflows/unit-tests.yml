@@ -1,0 +1,21 @@
+name: Unit tests
+
+# Host-side unit tests of the board logic (k4pro/tests), plain gcc, no submodules.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  unit-tests:
+    name: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and run
+        run: make -C k4pro/tests
