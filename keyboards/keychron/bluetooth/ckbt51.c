@@ -161,6 +161,9 @@ void ckbt51_init(bool wakeup_from_low_power_mode) {
 }
 
 void ckbt51_send_cmd(uint8_t* payload, uint8_t len, bool ack_enable, bool retry) {
+#ifdef DIAG_PROFILE_ENABLE
+    uint32_t prof_t0 = DWT->CYCCNT;
+#endif
     static uint8_t sn = 0;
     uint8_t        i;
     uint8_t        pkt[PACKET_MAX_LEN] = {0};
@@ -208,6 +211,9 @@ void ckbt51_send_cmd(uint8_t* payload, uint8_t len, bool ack_enable, bool retry)
 #ifdef CKBT51_SMART_WAKE
     ckbt51_last_tx    = sync_timer_read32();
     ckbt51_uart_awake = true;
+#endif
+#ifdef DIAG_PROFILE_ENABLE
+    diag_prof_add(DIAG_SEC_BT_SEND, prof_t0);
 #endif
 }
 

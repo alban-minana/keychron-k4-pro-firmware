@@ -552,14 +552,14 @@ void bluetooth_event_queue_task(void) {
 }
 
 void bluetooth_task(void) {
-    bluetooth_transport.task();
-    bluetooth_event_queue_task();
+    DIAG_PROFILE(DIAG_SEC_BT_TRANSPORT, bluetooth_transport.task());
+    DIAG_PROFILE(DIAG_SEC_BT_EVENTS, bluetooth_event_queue_task());
 #ifndef DISABLE_REPORT_BUFFER
-    report_buffer_task();
+    DIAG_PROFILE(DIAG_SEC_REPORT_BUF, report_buffer_task());
 #endif
-    indicator_task();
-    battery_task();
-    lpm_task();
+    DIAG_PROFILE(DIAG_SEC_INDICATOR, indicator_task());
+    DIAG_PROFILE(DIAG_SEC_BATTERY, battery_task());
+    DIAG_PROFILE(DIAG_SEC_LPM, lpm_task());
 }
 
 void send_string_task(void) {

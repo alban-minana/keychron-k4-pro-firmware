@@ -9,3 +9,6 @@ DEBOUNCE_TYPE = sym_eager_pk
 SRC += matrix.c
 
 include keyboards/keychron/bluetooth/bluetooth.mk
+
+# Section timings for k4pro/tools/k4tool.py profile (cycle counter, negligible cost)
+OPT_DEFS += -DDIAG_PROFILE_ENABLE

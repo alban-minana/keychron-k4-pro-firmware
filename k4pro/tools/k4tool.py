@@ -34,7 +34,9 @@ VID = 0x3434
 PIDS = {0x0240: "ANSI RGB", 0x0241: "ISO RGB", 0x0243: "ANSI white", 0x0244: "ISO white"}
 RAW_USAGE_PAGE, RAW_USAGE = 0xFF60, 0x61
 DIAG_ID = 0xC4
-CMD_INFO, CMD_COUNTERS, CMD_RESET, CMD_PROBE, CMD_OPTION = 1, 2, 3, 4, 5
+CMD_INFO, CMD_COUNTERS, CMD_RESET, CMD_PROBE, CMD_OPTION, CMD_PROFILE = 1, 2, 3, 4, 5, 6
+SECTIONS = ["Bluetooth UART task", "Bluetooth events", "report buffer", "indicators", "battery",
+            "low-power checks", "key matrix scan", "LED flush step", "Bluetooth send (wake + UART)"]
 OPTIONS = {"led-flush-incremental": 1}
 PACKET = 32
 VK_F24 = 0x87
@@ -208,6 +210,30 @@ def cmd_info(kb, args):
     print("  Counters     " + ", ".join(f"{k} {v}" for k, v in c.items()))
 
 
+def cmd_profile(kb, args):
+    """Longest main-loop pass and longest run of each instrumented section, per second."""
+    worst = {}
+    pass_worst = 0
+    print(f"Profiling for {args.seconds} s (type, or run a latency test at the same time)...")
+    for _ in range(args.seconds):
+        time.sleep(1)
+        r = kb.request(CMD_PROFILE)
+        if r is None or r[2] != 0:
+            sys.exit("This firmware has no profiler (needs DIAG_PROFILE_ENABLE).")
+        p = r[3:]
+        pass_us = int.from_bytes(p[0:4], "little")
+        pass_worst = max(pass_worst, pass_us)
+        for s in range(min(p[4], len(SECTIONS))):
+            us = int.from_bytes(p[5 + 2 * s:7 + 2 * s], "little")
+            worst[SECTIONS[s]] = max(worst.get(SECTIONS[s], 0), us)
+        if args.live:
+            print(f"  pass {pass_us:>6} us  " + "  ".join(f"{k.split()[0]} {v}" for k, v in worst.items()))
+    print(f"\nLongest main-loop pass: {pass_worst} us")
+    for name, us in sorted(worst.items(), key=lambda kv: -kv[1]):
+        print(f"  {name:<30} {us:>6} us")
+    print("Sections not listed (RGB rendering, USB, QMK core) make up the rest of a pass.")
+
+
 def cmd_reset(kb, args):
     kb.reset()
     print("Counters cleared.")
@@ -354,12 +380,14 @@ def main():
     sub.add_parser("reset")
     p = sub.add_parser("watch"); p.add_argument("--chatter-ms", type=int, default=30)
     p = sub.add_parser("latency"); p.add_argument("-n", type=int, default=300); p.add_argument("--save")
+    p = sub.add_parser("profile", help="longest run of each firmware section")
+    p.add_argument("--seconds", type=int, default=20); p.add_argument("--live", action="store_true")
     p = sub.add_parser("ab-flush", help="A/B test: stock vs incremental LED flush")
     p.add_argument("-n", type=int, default=200); p.add_argument("--rounds", type=int, default=3); p.add_argument("--save")
     args = ap.parse_args()
     kb = Keyboard()
     {"info": cmd_info, "reset": cmd_reset, "watch": cmd_watch, "latency": cmd_latency,
-     "ab-flush": cmd_ab_flush}[args.cmd](kb, args)
+     "ab-flush": cmd_ab_flush, "profile": cmd_profile}[args.cmd](kb, args)
 
 
 if __name__ == "__main__":

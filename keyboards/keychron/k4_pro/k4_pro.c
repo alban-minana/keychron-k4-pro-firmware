@@ -188,7 +188,11 @@ void keyboard_post_init_kb(void) {
 
 void matrix_scan_kb(void) {
 #ifdef SNLED27351_INCREMENTAL_FLUSH
+#    ifdef KC_BLUETOOTH_ENABLE
+    DIAG_PROFILE(DIAG_SEC_LED_FLUSH, snled27351_flush_task());
+#    else
     snled27351_flush_task();
+#    endif
 #endif
 
     if (power_on_indicator_timer_buffer) {
