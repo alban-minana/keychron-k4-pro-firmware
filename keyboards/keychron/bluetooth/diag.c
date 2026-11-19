@@ -23,7 +23,9 @@
 #include "battery.h"
 #include "lpm.h"
 #ifdef SNLED27351_INCREMENTAL_FLUSH
-#    include "snled27351.h"
+/* snled27351.c or snled27351-mono.c, depending on the variant */
+void        snled27351_flush_task(void);
+extern bool snled27351_incremental_flush;
 #endif
 
 #define DIAG_PROTOCOL_VERSION 1
