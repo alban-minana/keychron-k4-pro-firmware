@@ -26,6 +26,7 @@
 /* snled27351.c or snled27351-mono.c, depending on the variant */
 void        snled27351_flush_task(void);
 extern bool snled27351_incremental_flush;
+extern uint8_t snled27351_flush_chunks;
 #endif
 
 #define DIAG_PROTOCOL_VERSION 1
@@ -37,9 +38,14 @@ enum {
     DIAG_CMD_RESET    = 0x03,
     DIAG_CMD_PROBE    = 0x04,
     DIAG_CMD_OPTION   = 0x05,
+    DIAG_CMD_PROFILE  = 0x06,
 };
 
 diag_counters_t diag;
+
+#ifdef CKBT51_SMART_WAKE
+extern uint16_t ckbt51_wake_skip_ms;
+#endif
 
 #if defined(NKRO_ENABLE) && defined(BLUETOOTH_NKRO_ENABLE)
 extern nkro_t nkro;
@@ -52,6 +58,42 @@ static uint32_t last_pass      = 0;
 static uint8_t  gap_max        = 0, gap_max_window = 0;   // longest main-loop pass, ms
 static uint16_t slow_count     = 0, slow_window = 0;      // passes of 3 ms or more
 static uint32_t probe_released = 0; // timestamp of the probe press, 0 = idle
+
+#ifdef DIAG_PROFILE_ENABLE
+#    define CYCLES_PER_US (STM32_SYSCLK / 1000000U)
+static uint16_t prof_max[DIAG_SEC_COUNT], prof_max_window[DIAG_SEC_COUNT];
+static uint32_t pass_max_us = 0, pass_max_window = 0, pass_start = 0;
+static bool     prof_ready = false;
+
+static void diag_prof_init(void) {
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CYCCNT = 0;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    prof_ready = true;
+}
+
+void diag_prof_add(uint8_t section, uint32_t start_cycles) {
+    uint32_t us = (DWT->CYCCNT - start_cycles) / CYCLES_PER_US;
+    if (us > 0xFFFF) us = 0xFFFF;
+    if (section < DIAG_SEC_COUNT && us > prof_max_window[section]) prof_max_window[section] = us;
+}
+
+static void diag_prof_pass(bool window_end) {
+    if (!prof_ready) diag_prof_init();
+    uint32_t now = DWT->CYCCNT;
+    if (pass_start) {
+        uint32_t us = (now - pass_start) / CYCLES_PER_US;
+        if (us > pass_max_window) pass_max_window = us;
+    }
+    pass_start = now;
+    if (window_end) {
+        memcpy(prof_max, prof_max_window, sizeof(prof_max));
+        memset(prof_max_window, 0, sizeof(prof_max_window));
+        pass_max_us     = pass_max_window;
+        pass_max_window = 0;
+    }
+}
+#endif
 
 static void put16(uint8_t *p, uint16_t v) {
     p[0] = v & 0xFF;
@@ -83,6 +125,10 @@ void diag_task(void) {
         slow_window    = 0;
         scan_window = sync_timer_read32() | 1;
     }
+
+#ifdef DIAG_PROFILE_ENABLE
+    diag_prof_pass(elapsed >= 1000);
+#endif
 
     if (probe_released && sync_timer_elapsed32(probe_released) >= DIAG_PROBE_HOLD_MS) {
         probe_released = 0;
@@ -154,10 +200,31 @@ void diag_rx(uint8_t *data, uint8_t length) {
                     out[0] = snled27351_incremental_flush;
                     break;
 #endif
+#ifdef CKBT51_SMART_WAKE
+                case 2: // wake-pulse skip window, in 100 ms units
+                    if (arg1 != 0xFF) ckbt51_wake_skip_ms = (uint16_t)arg1 * 100;
+                    out[0] = ckbt51_wake_skip_ms / 100;
+                    break;
+#endif
+#ifdef SNLED27351_INCREMENTAL_FLUSH
+                case 3: // LED flush transfers per main-loop pass
+                    if (arg1 >= 1 && arg1 <= 24) snled27351_flush_chunks = arg1;
+                    out[0] = snled27351_flush_chunks;
+                    break;
+#endif
                 default:
                     data[2] = 2; // unknown option
                     break;
             }
+            break;
+        case DIAG_CMD_PROFILE: // [0..3] longest pass, then one uint16 per section (us)
+#ifdef DIAG_PROFILE_ENABLE
+            put32(&out[0], pass_max_us);
+            out[4] = DIAG_SEC_COUNT;
+            for (uint8_t s = 0; s < DIAG_SEC_COUNT; s++) put16(&out[5 + 2 * s], prof_max[s]);
+#else
+            data[2] = 2; // not built in
+#endif
             break;
         default:
             data[2] = 0xFF; // unknown command

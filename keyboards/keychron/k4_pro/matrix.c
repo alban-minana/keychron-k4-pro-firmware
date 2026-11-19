@@ -18,6 +18,9 @@
 #include "hal.h"
 #include "gpio.h"
 #include "quantum.h"
+#ifdef KC_BLUETOOTH_ENABLE
+#    include "diag.h"
+#endif
 
 #define HC595_STCP A0
 #define HC595_SHCP A1
@@ -164,9 +167,7 @@ bool matrix_scan_custom(matrix_row_t current_matrix[]) {
     matrix_row_t curr_matrix[MATRIX_ROWS] = {0};
 
     // Set col, read rows
-    for (uint8_t current_col = 0; current_col < MATRIX_COLS; current_col++) {
-        matrix_read_rows_on_col(curr_matrix, current_col);
-    }
+    DIAG_PROFILE(DIAG_SEC_MATRIX, for (uint8_t current_col = 0; current_col < MATRIX_COLS; current_col++) { matrix_read_rows_on_col(curr_matrix, current_col); });
 
     matrix_has_changed = memcmp(current_matrix, curr_matrix, sizeof(curr_matrix)) != 0;
     if (matrix_has_changed) memcpy(current_matrix, curr_matrix, sizeof(curr_matrix));

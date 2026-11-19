@@ -32,6 +32,11 @@
 /* Send the LED frame to the LED drivers a few I2C transfers per main-loop pass instead
  * of all at once (several ms), so key scanning is never paused for long. */
 #define SNLED27351_INCREMENTAL_FLUSH
+/* 16-byte I2C transfers per main-loop pass: 1 keeps every pass under ~1.8 ms (measured)
+ * with no visible change to the animations. */
+#ifndef SNLED27351_FLUSH_CHUNKS_PER_STEP
+#    define SNLED27351_FLUSH_CHUNKS_PER_STEP 1
+#endif
 
 #ifdef KC_BLUETOOTH_ENABLE
 /* Skip the blocking 3 ms CKBT51 UART wake-up pulse for HID reports when a packet was
