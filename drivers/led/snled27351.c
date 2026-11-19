@@ -251,13 +251,71 @@ void snled27351_update_led_control_registers(uint8_t index) {
     }
 }
 
+#ifdef SNLED27351_INCREMENTAL_FLUSH
+/* IMPROVEMENT: a full flush of both drivers is ~24 blocking I2C transfers (several ms),
+ * during which the main loop does not scan the keys. The flush is now spread over the
+ * following main-loop passes, SNLED27351_FLUSH_CHUNKS_PER_STEP transfers at a time, so
+ * a key press is never held up by more than a fraction of a millisecond.
+ * snled27351_flush_task() must be called from the main loop. */
+#    ifndef SNLED27351_FLUSH_CHUNKS_PER_STEP
+#        define SNLED27351_FLUSH_CHUNKS_PER_STEP 3
+#    endif
+static int8_t  flush_driver = -1; // driver being sent, -1 = idle
+static uint8_t flush_offset = 0;
+bool           snled27351_incremental_flush = true; // can be turned off at run time (A/B tests)
+
+static bool snled27351_flush_next_driver(void) {
+    for (uint8_t i = (flush_driver < 0 ? 0 : flush_driver + 1); i < SNLED27351_DRIVER_COUNT; i++) {
+        if (driver_buffers[i].pwm_buffer_dirty) {
+            driver_buffers[i].pwm_buffer_dirty = false; // changes from now on mark it dirty again
+            flush_driver                       = i;
+            flush_offset                       = 0;
+            return true;
+        }
+    }
+    flush_driver = -1;
+    return false;
+}
+
+void snled27351_flush_task(void) {
+    if (flush_driver < 0) return;
+    /* Re-select the PWM page every step: other writes may have changed it meanwhile. */
+    snled27351_select_page(flush_driver, SNLED27351_COMMAND_PWM);
+    for (uint8_t n = 0; n < SNLED27351_FLUSH_CHUNKS_PER_STEP; n++) {
+        i2c_write_register(i2c_addresses[flush_driver] << 1, flush_offset, driver_buffers[flush_driver].pwm_buffer + flush_offset, 16, SNLED27351_I2C_TIMEOUT);
+        flush_offset += 16;
+        if (flush_offset >= SNLED27351_PWM_REGISTER_COUNT) {
+            if (!snled27351_flush_next_driver()) return;
+            snled27351_select_page(flush_driver, SNLED27351_COMMAND_PWM);
+        }
+    }
+}
+
+static void snled27351_flush_complete(void) {
+    while (flush_driver >= 0) snled27351_flush_task();
+}
+
+void snled27351_flush(void) {
+    if (!snled27351_incremental_flush) {
+        snled27351_flush_complete();
+        for (uint8_t i = 0; i < SNLED27351_DRIVER_COUNT; i++) snled27351_update_pwm_buffers(i);
+        return;
+    }
+    if (flush_driver < 0 && !snled27351_flush_next_driver()) return;
+    snled27351_flush_task();
+}
+#else
 void snled27351_flush(void) {
     for (uint8_t i = 0; i < SNLED27351_DRIVER_COUNT; i++) {
         snled27351_update_pwm_buffers(i);
     }
 }
+#endif
 
 void snled27351_shutdown(void) {
+#ifdef SNLED27351_INCREMENTAL_FLUSH
+    snled27351_flush_complete();
+#endif
 #if defined(SN27351_SDB_PIN)
     gpio_write_pin_low(SN27351_SDB_PIN);
 #else
