@@ -35,6 +35,10 @@ enum {
 
 diag_counters_t diag;
 
+#if defined(NKRO_ENABLE) && defined(BLUETOOTH_NKRO_ENABLE)
+extern nkro_t nkro;
+#endif
+
 static uint32_t scan_count     = 0;
 static uint32_t scan_window    = 0;
 static uint16_t scan_rate      = 0;
