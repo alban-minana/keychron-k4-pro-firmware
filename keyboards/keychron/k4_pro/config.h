@@ -29,6 +29,10 @@
 #    define DEBOUNCE 5
 #endif
 
+/* Send the LED frame to the LED drivers a few I2C transfers per main-loop pass instead
+ * of all at once (several ms), so key scanning is never paused for long. */
+#define SNLED27351_INCREMENTAL_FLUSH
+
 #ifdef KC_BLUETOOTH_ENABLE
 /* Skip the blocking 3 ms CKBT51 UART wake-up pulse for HID reports when a packet was
  * sent less than CKBT51_WAKE_SKIP_MS ago (the module only sleeps its UART after 3 s

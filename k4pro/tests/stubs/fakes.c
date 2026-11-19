@@ -77,3 +77,11 @@ void  eeconfig_read_keymap(keymap_config_t *config) {}
 led_t host_keyboard_led_state(void) { return (led_t){0}; }
 bool  led_update_user(led_t led_state) { return true; }
 void  led_update_ports(led_t led_state) {}
+
+/* diag.c is not linked: counters and hooks used by the code under test. */
+#include "diag.h"
+diag_counters_t diag;
+void diag_task(void) {}
+void diag_rx(uint8_t *data, uint8_t length) { (void)data; (void)length; }
+void snled27351_flush_task(void) {}
+bool snled27351_incremental_flush = true;

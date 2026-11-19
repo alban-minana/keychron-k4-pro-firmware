@@ -15,6 +15,11 @@
  */
 
 #include "k4_pro.h"
+#ifdef SNLED27351_INCREMENTAL_FLUSH
+/* snled27351.c or snled27351-mono.c, depending on the variant */
+void        snled27351_flush_task(void);
+extern bool snled27351_incremental_flush;
+#endif
 #ifdef KC_BLUETOOTH_ENABLE
 #    include "ckbt51.h"
 #    include "bluetooth.h"
@@ -182,6 +187,10 @@ void keyboard_post_init_kb(void) {
 }
 
 void matrix_scan_kb(void) {
+#ifdef SNLED27351_INCREMENTAL_FLUSH
+    snled27351_flush_task();
+#endif
+
     if (power_on_indicator_timer_buffer) {
         if (sync_timer_elapsed32(power_on_indicator_timer_buffer) > POWER_ON_LED_DURATION) {
             power_on_indicator_timer_buffer = 0;

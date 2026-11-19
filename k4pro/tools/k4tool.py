@@ -34,7 +34,8 @@ VID = 0x3434
 PIDS = {0x0240: "ANSI RGB", 0x0241: "ISO RGB", 0x0243: "ANSI white", 0x0244: "ISO white"}
 RAW_USAGE_PAGE, RAW_USAGE = 0xFF60, 0x61
 DIAG_ID = 0xC4
-CMD_INFO, CMD_COUNTERS, CMD_RESET, CMD_PROBE = 1, 2, 3, 4
+CMD_INFO, CMD_COUNTERS, CMD_RESET, CMD_PROBE, CMD_OPTION = 1, 2, 3, 4, 5
+OPTIONS = {"led-flush-incremental": 1}
 PACKET = 32
 VK_F24 = 0x87
 
@@ -74,6 +75,19 @@ class Keyboard:
             sys.exit("No answer. Flash v0.6.0 or newer, and close VIA / Keychron Launcher.")
         return None
 
+    def option(self, name, value=0xFF):
+        """Read (value 0xFF) or set a run-time firmware option. Returns its value."""
+        pkt = bytes([DIAG_ID, CMD_OPTION, 0, OPTIONS[name], value]) + bytes(PACKET - 5)
+        self.dev.write(b"\x00" + pkt)
+        deadline = time.monotonic() + 0.5
+        while time.monotonic() < deadline:
+            r = self.dev.read(PACKET, 50)
+            if r and r[0] == DIAG_ID and r[1] == CMD_OPTION:
+                if r[2] != 0:
+                    sys.exit(f"Option {name} is not supported by this firmware.")
+                return r[3]
+        sys.exit("No answer to the option command.")
+
     def send_probe(self):
         self.dev.write(b"\x00" + bytes([DIAG_ID, CMD_PROBE]) + bytes(PACKET - 2))
 
@@ -103,6 +117,8 @@ class Keyboard:
             "battery_to_host": bool(flags & 2),
             "bt_nkro": bool(flags & 4),
             "idle_ms": u32(17),
+            "loop_max_ms": p[21],
+            "slow_loops_per_s": u16(22),
         }
 
     def counters(self):
@@ -139,6 +155,7 @@ class KeyHook:
 
     def __init__(self):
         self.events = queue.Queue()
+        self._procs = []
         threading.Thread(target=self._run, daemon=True).start()
 
     def _run(self):
@@ -152,12 +169,19 @@ class KeyHook:
                     return 1
             return user32.CallNextHookEx(None, code, wparam, lparam)
 
-        self._proc = HOOKPROC(proc)
-        if not user32.SetWindowsHookExW(13, self._proc, kernel32.GetModuleHandleW(None), 0):
+        cb = HOOKPROC(proc)
+        self._procs.append(cb)  # keep every callback alive, an old hook may still call it
+        if not user32.SetWindowsHookExW(13, cb, kernel32.GetModuleHandleW(None), 0):
             raise OSError(ctypes.get_last_error(), "SetWindowsHookEx failed")
         msg = wintypes.MSG()
         while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
             pass
+
+    def reinstall(self):
+        """Windows silently drops a low-level hook that once answered too slowly
+        (LowLevelHooksTimeout). Install a fresh one on the same queue."""
+        threading.Thread(target=self._run, daemon=True).start()
+        time.sleep(0.2)
 
     def get(self, timeout):
         try:
@@ -176,7 +200,8 @@ def cmd_info(kb, args):
     print(f"Keychron K4 Pro {i['model']}  (diagnostics v{i['protocol']})")
     print(f"  Connection   {i['transport']}" + (f", Bluetooth {i['bluetooth']}" if i['transport'] == 'Bluetooth' else ""))
     print(f"  Battery      {i['battery_percent']} %  ({i['battery_mv']} mV)" + ("  charging" if i['usb_power'] else ""))
-    print(f"  Scan rate    {i['scan_rate_hz']} Hz")
+    print(f"  Scan rate    {i['scan_rate_hz']} Hz, longest pass {i['loop_max_ms']} ms, "
+          f"{i['slow_loops_per_s']} passes >= 3 ms per second")
     print(f"  Settings     debounce {i['debounce_ms']} ms, Bluetooth {i['bt_report_rate_hz']} Hz, "
           f"smart wake {'on' if i['smart_wake'] else 'off'}, BT NKRO {'on' if i['bt_nkro'] else 'off'}")
     print(f"  Uptime       {i['uptime_s'] // 3600} h {i['uptime_s'] // 60 % 60} min")
@@ -217,7 +242,7 @@ def cmd_watch(kb, args):
                 d = {k: c[k] - prev[k] for k in c}
                 prev = c
                 line = (f"\r{i['transport']:<9} {i['bluetooth'] if i['transport'] == 'Bluetooth' else '':<12} "
-                        f"bat {i['battery_percent']:>3}%  scan {i['scan_rate_hz']:>5} Hz  "
+                        f"bat {i['battery_percent']:>3}%  scan {i['scan_rate_hz']:>5} Hz (max {i['loop_max_ms']} ms)  "
                         f"BT reports/s {d['bt_reports']:>3}  retries {c['bt_retries']}  "
                         f"FIFO full {c['bt_fifo_full']}  reconnects {c['bt_connects']}  "
                         f"sleeps {c['sleeps']}  keys {keys}  double-types {len(chatter)}   ")
@@ -229,16 +254,61 @@ def cmd_watch(kb, args):
 
 
 def cmd_latency(kb, args):
-    i = kb.info()
     hook = KeyHook()
     time.sleep(0.2)
+    res = measure(kb, hook, args.n)
+    print_result(res)
+    print("Measured from the PC request to the key arriving in Windows: it includes about 1 ms of USB\n"
+          "to reach the keyboard, but not the switch travel or debounce (those happen before).")
+    if args.save:
+        with open(args.save, "w") as f:
+            json.dump(res, f, indent=2)
+        print(f"Saved to {args.save}")
+
+
+def print_result(res, label=None):
+    print(f"\n{label or res['transport']}: median {res['median_ms']} ms, p95 {res['p95_ms']} ms, "
+          f"min {res['min_ms']} ms, max {res['max_ms']} ms, jitter (stdev) {res['stdev_ms']} ms, "
+          f"lost {res['lost']}, longest firmware pass {res['loop_max_ms']} ms")
+
+
+def cmd_ab_flush(kb, args):
+    """A/B test of the incremental LED flush: same keyboard, same session, toggled live."""
+    hook = KeyHook()
+    time.sleep(0.2)
+    results = {}
+    try:
+        for rnd in range(args.rounds):
+            for state in (0, 1):
+                kb.option("led-flush-incremental", state)
+                time.sleep(1.2)  # let the loop statistics refresh
+                label = "incremental" if state else "stock (one block)"
+                print(f"Round {rnd + 1}/{args.rounds}, LED flush {label}")
+                r = measure(kb, hook, args.n, quiet=True)
+                results.setdefault(label, []).append(r)
+                print_result(r, label)
+    finally:
+        kb.option("led-flush-incremental", 1)
+    print("\nSummary (median of the rounds):")
+    for label, rs in results.items():
+        med = lambda k: round(statistics.median(x[k] for x in rs), 2)
+        print(f"  {label:<18} median {med('median_ms')} ms, p95 {med('p95_ms')} ms, max {med('max_ms')} ms, "
+              f"longest pass {med('loop_max_ms')} ms")
+    if args.save:
+        with open(args.save, "w") as f:
+            json.dump(results, f, indent=2)
+
+
+def measure(kb, hook, count, quiet=False):
+    i = kb.info()
     kb.drain()
     if i["transport"] == "Bluetooth" and i["bluetooth"] != "connected":
         sys.exit("Bluetooth is not connected.")
-    print(f"Measuring {args.n} key taps over {i['transport']} "
-          f"(the probe key is F24, it is hidden from applications)...")
-    samples, lost = [], 0
-    for n in range(args.n):
+    if not quiet:
+        print(f"Measuring {count} key taps over {i['transport']} "
+              f"(the probe key is F24, it is hidden from applications)...")
+    samples, lost, loop_max = [], 0, 0
+    for n in range(count):
         while hook.get(0):
             pass
         t0 = time.perf_counter()
@@ -259,27 +329,22 @@ def cmd_latency(kb, args):
                 break
         if not got_down:
             lost += 1
+            hook.reinstall()  # a missed probe is almost always a dropped hook on the PC side
         kb.drain()
         time.sleep(random.uniform(0.02, 0.05))  # random gap: no lock-step with the radio interval
-        if (n + 1) % 50 == 0:
-            print(f"  {n + 1}/{args.n}")
+        if (n + 1) % 100 == 0:
+            loop_max = max(loop_max, kb.info()["loop_max_ms"])
+            if not quiet:
+                print(f"  {n + 1}/{count}")
     if not samples:
         sys.exit("No probe key received. Is the keyboard connected to this PC?")
     samples.sort()
     pct = lambda q: samples[min(len(samples) - 1, int(q * len(samples)))]
-    res = {"transport": i["transport"], "samples": len(samples), "lost": lost,
-           "min_ms": round(samples[0], 2), "median_ms": round(statistics.median(samples), 2),
-           "p95_ms": round(pct(0.95), 2), "max_ms": round(samples[-1], 2),
-           "stdev_ms": round(statistics.pstdev(samples), 2),
-           "settings": {k: i[k] for k in ("debounce_ms", "bt_report_rate_hz", "smart_wake", "bt_nkro")}}
-    print(f"\n{i['transport']}: median {res['median_ms']} ms, p95 {res['p95_ms']} ms, "
-          f"min {res['min_ms']} ms, max {res['max_ms']} ms, jitter (stdev) {res['stdev_ms']} ms, lost {lost}")
-    print("Measured from the PC request to the key arriving in Windows: it includes about 1 ms of USB\n"
-          "to reach the keyboard, but not the switch travel or debounce (those happen before).")
-    if args.save:
-        with open(args.save, "w") as f:
-            json.dump(res, f, indent=2)
-        print(f"Saved to {args.save}")
+    return {"transport": i["transport"], "samples": len(samples), "lost": lost,
+            "min_ms": round(samples[0], 2), "median_ms": round(statistics.median(samples), 2),
+            "p95_ms": round(pct(0.95), 2), "max_ms": round(samples[-1], 2),
+            "stdev_ms": round(statistics.pstdev(samples), 2), "loop_max_ms": loop_max,
+            "settings": {k: i[k] for k in ("debounce_ms", "bt_report_rate_hz", "smart_wake", "bt_nkro")}}
 
 
 def main():
@@ -289,9 +354,12 @@ def main():
     sub.add_parser("reset")
     p = sub.add_parser("watch"); p.add_argument("--chatter-ms", type=int, default=30)
     p = sub.add_parser("latency"); p.add_argument("-n", type=int, default=300); p.add_argument("--save")
+    p = sub.add_parser("ab-flush", help="A/B test: stock vs incremental LED flush")
+    p.add_argument("-n", type=int, default=200); p.add_argument("--rounds", type=int, default=3); p.add_argument("--save")
     args = ap.parse_args()
     kb = Keyboard()
-    {"info": cmd_info, "reset": cmd_reset, "watch": cmd_watch, "latency": cmd_latency}[args.cmd](kb, args)
+    {"info": cmd_info, "reset": cmd_reset, "watch": cmd_watch, "latency": cmd_latency,
+     "ab-flush": cmd_ab_flush}[args.cmd](kb, args)
 
 
 if __name__ == "__main__":

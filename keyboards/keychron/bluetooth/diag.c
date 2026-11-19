@@ -22,6 +22,11 @@
 #include "bluetooth.h"
 #include "battery.h"
 #include "lpm.h"
+#ifdef SNLED27351_INCREMENTAL_FLUSH
+/* snled27351.c or snled27351-mono.c, depending on the variant */
+void        snled27351_flush_task(void);
+extern bool snled27351_incremental_flush;
+#endif
 
 #define DIAG_PROTOCOL_VERSION 1
 #define DIAG_PROBE_HOLD_MS 20
@@ -31,6 +36,7 @@ enum {
     DIAG_CMD_COUNTERS = 0x02,
     DIAG_CMD_RESET    = 0x03,
     DIAG_CMD_PROBE    = 0x04,
+    DIAG_CMD_OPTION   = 0x05,
 };
 
 diag_counters_t diag;
@@ -42,6 +48,9 @@ extern nkro_t nkro;
 static uint32_t scan_count     = 0;
 static uint32_t scan_window    = 0;
 static uint16_t scan_rate      = 0;
+static uint32_t last_pass      = 0;
+static uint8_t  gap_max        = 0, gap_max_window = 0;   // longest main-loop pass, ms
+static uint16_t slow_count     = 0, slow_window = 0;      // passes of 3 ms or more
 static uint32_t probe_released = 0; // timestamp of the probe press, 0 = idle
 
 static void put16(uint8_t *p, uint16_t v) {
@@ -54,12 +63,24 @@ static void put32(uint8_t *p, uint32_t v) {
 }
 
 void diag_task(void) {
+    uint32_t now = timer_read32();
+    if (last_pass) {
+        uint32_t gap = now - last_pass;
+        if (gap > gap_max_window) gap_max_window = gap > 255 ? 255 : gap;
+        if (gap >= 3) slow_window++;
+    }
+    last_pass = now;
+
     scan_count++;
     if (scan_window == 0) scan_window = sync_timer_read32() | 1;
     uint32_t elapsed = sync_timer_elapsed32(scan_window);
     if (elapsed >= 1000) {
         scan_rate   = scan_count * 1000 / elapsed;
         scan_count  = 0;
+        gap_max        = gap_max_window;
+        gap_max_window = 0;
+        slow_count     = slow_window;
+        slow_window    = 0;
         scan_window = sync_timer_read32() | 1;
     }
 
@@ -70,6 +91,8 @@ void diag_task(void) {
 }
 
 void diag_rx(uint8_t *data, uint8_t length) {
+    uint8_t  arg0 = data[3], arg1 = data[4]; // before out[] is cleared
+    (void)arg1;
     uint8_t *out = &data[3];
     memset(out, 0, length - 3);
     data[2] = 0;
@@ -100,6 +123,8 @@ void diag_rx(uint8_t *data, uint8_t length) {
 #endif
                 ;
             put32(&out[17], last_input_activity_elapsed());
+            out[21] = gap_max;
+            put16(&out[22], slow_count);
             break;
         }
         case DIAG_CMD_COUNTERS: {
@@ -121,6 +146,19 @@ void diag_rx(uint8_t *data, uint8_t length) {
             register_code(KC_F24);
             probe_released = sync_timer_read32() | 1;
             return;
+        case DIAG_CMD_OPTION: // [3] = option, [4] = value (0xFF = read); answers the value in [3]
+            switch (arg0) {
+#ifdef SNLED27351_INCREMENTAL_FLUSH
+                case 1:
+                    if (arg1 <= 1) snled27351_incremental_flush = arg1; // 0xFF = read only
+                    out[0] = snled27351_incremental_flush;
+                    break;
+#endif
+                default:
+                    data[2] = 2; // unknown option
+                    break;
+            }
+            break;
         default:
             data[2] = 0xFF; // unknown command
             break;
