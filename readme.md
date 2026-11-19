@@ -46,7 +46,7 @@ Unofficial firmware for the **Keychron K4 Pro**: ISO and ANSI, RGB and white. It
 | Bluetooth send | 3 ms pause before each report | Pause only after 1.5 s idle |
 | Matrix scan | 2 shift-register writes per column | 1 write per column |
 | Key pressed during reconnect | Lost | Sent once connected (≤ 3 s) |
-| Backlight off on battery | 10 min | 3 min |
+| Backlight off on battery | 10 min, cuts out | 3 min, dims 10 s before |
 | Battery % (<kbd>Fn</kbd>+<kbd>B</kbd>) | Linear estimate | Li-ion curve, faster animation |
 
 **Fixed bugs**
@@ -55,6 +55,7 @@ Unofficial firmware for the **Keychron K4 Pro**: ISO and ANSI, RGB and white. It
 - Bluetooth pairing code running inside an interrupt
 - Possible memory corruption on a garbled Bluetooth packet
 - NKRO setting ignored after PIN pairing
+- Cable/Bluetooth switch not debounced (could flip modes while sliding)
 
 Details: [k4pro/ANALYSIS.md](k4pro/ANALYSIS.md).
 
@@ -68,6 +69,7 @@ Options live at the top of [`keyboards/keychron/k4_pro/config.h`](keyboards/keyc
 | `CKBT51_REPORT_RATE` | `133` | `90` = stock |
 | `CKBT51_SMART_WAKE` | on | Disable if letters go missing over Bluetooth |
 | `CONNECTED_BACKLIGHT_DISABLE_TIMEOUT` | `180` | Backlight off delay on battery (s) |
+| `BACKLIGHT_DIM_PERCENT` | `30` | Brightness during the 10 s before it turns off |
 | `BT_WAKE_KEY_BUFFER_MS` | `3000` | Keep keys typed during reconnect (`0` = off) |
 | `BT_REPORT_BATTERY_LEVEL` | on | Send the battery level to the Bluetooth module (experimental: not shown by Windows) |
 
