@@ -144,6 +144,7 @@ void snled27351_update_led_control_registers(uint8_t index);
 void snled27351_flush(void);
 void snled27351_flush_task(void);
 extern bool snled27351_incremental_flush;
+extern uint8_t snled27351_flush_chunks;
 void snled27351_shutdown(void);
 void snled27351_exit_shutdown(void);
 void snled27351_sw_return_normal(uint8_t index);

@@ -247,6 +247,7 @@ void snled27351_update_led_control_registers(uint8_t index) {
 static int8_t  flush_driver = -1; // driver being sent, -1 = idle
 static uint8_t flush_offset = 0;
 bool           snled27351_incremental_flush = true; // can be turned off at run time (A/B tests)
+uint8_t        snled27351_flush_chunks      = SNLED27351_FLUSH_CHUNKS_PER_STEP; // 16-byte transfers per pass
 
 static bool snled27351_flush_next_driver(void) {
     for (uint8_t i = (flush_driver < 0 ? 0 : flush_driver + 1); i < SNLED27351_DRIVER_COUNT; i++) {
@@ -265,7 +266,7 @@ void snled27351_flush_task(void) {
     if (flush_driver < 0) return;
     /* Re-select the PWM page every step: other writes may have changed it meanwhile. */
     snled27351_select_page(flush_driver, SNLED27351_COMMAND_PWM);
-    for (uint8_t n = 0; n < SNLED27351_FLUSH_CHUNKS_PER_STEP; n++) {
+    for (uint8_t n = 0; n < snled27351_flush_chunks; n++) {
         i2c_write_register(i2c_addresses[flush_driver] << 1, flush_offset, driver_buffers[flush_driver].pwm_buffer + flush_offset, 16, SNLED27351_I2C_TIMEOUT);
         flush_offset += 16;
         if (flush_offset >= SNLED27351_PWM_REGISTER_COUNT) {

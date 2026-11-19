@@ -26,6 +26,7 @@
 /* snled27351.c or snled27351-mono.c, depending on the variant */
 void        snled27351_flush_task(void);
 extern bool snled27351_incremental_flush;
+extern uint8_t snled27351_flush_chunks;
 #endif
 
 #define DIAG_PROTOCOL_VERSION 1
@@ -41,6 +42,10 @@ enum {
 };
 
 diag_counters_t diag;
+
+#ifdef CKBT51_SMART_WAKE
+extern uint16_t ckbt51_wake_skip_ms;
+#endif
 
 #if defined(NKRO_ENABLE) && defined(BLUETOOTH_NKRO_ENABLE)
 extern nkro_t nkro;
@@ -193,6 +198,18 @@ void diag_rx(uint8_t *data, uint8_t length) {
                 case 1:
                     if (arg1 <= 1) snled27351_incremental_flush = arg1; // 0xFF = read only
                     out[0] = snled27351_incremental_flush;
+                    break;
+#endif
+#ifdef CKBT51_SMART_WAKE
+                case 2: // wake-pulse skip window, in 100 ms units
+                    if (arg1 != 0xFF) ckbt51_wake_skip_ms = (uint16_t)arg1 * 100;
+                    out[0] = ckbt51_wake_skip_ms / 100;
+                    break;
+#endif
+#ifdef SNLED27351_INCREMENTAL_FLUSH
+                case 3: // LED flush transfers per main-loop pass
+                    if (arg1 >= 1 && arg1 <= 24) snled27351_flush_chunks = arg1;
+                    out[0] = snled27351_flush_chunks;
                     break;
 #endif
                 default:

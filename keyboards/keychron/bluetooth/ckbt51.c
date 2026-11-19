@@ -117,6 +117,7 @@ static uint8_t reg_offset = 0xFF;
 #    ifndef CKBT51_WAKE_SKIP_MS
 #        define CKBT51_WAKE_SKIP_MS 1500
 #    endif
+uint16_t        ckbt51_wake_skip_ms = CKBT51_WAKE_SKIP_MS; // run-time tunable (diagnostics)
 static uint32_t ckbt51_last_tx    = 0;
 static bool     ckbt51_uart_awake = false;
 #endif
@@ -177,9 +178,12 @@ void ckbt51_send_cmd(uint8_t* payload, uint8_t len, bool ack_enable, bool retry)
 #ifdef CKBT51_SMART_WAKE
     /* IMPROVEMENT: the module only powers its UART down after 3 s of inactivity, so the
      * blocking 3 ms wake sequence is only needed when nothing was sent recently.
-     * Restricted to HID report commands (0x1X), which are only sent while connected;
-     * connection/config commands always get the full wake sequence. */
-    bool skip_wake = ckbt51_uart_awake && (payload[0] & 0xF0) == 0x10 && sync_timer_elapsed32(ckbt51_last_tx) <= CKBT51_WAKE_SKIP_MS;
+     * Restricted to HID report commands (0x1X) and the battery read / level update
+     * (0x25, 0x32), which are only sent while connected; otherwise the periodic battery
+     * read blocked the main loop for 3 ms every few seconds.
+     * Connection/config commands always get the full wake sequence. */
+    bool skip_cmd  = (payload[0] & 0xF0) == 0x10 || payload[0] == CKBT51_CMD_READ_STATE_REG || payload[0] == CKBT51_CMD_UPDATE_BAT_LVL;
+    bool skip_wake = ckbt51_uart_awake && skip_cmd && sync_timer_elapsed32(ckbt51_last_tx) <= ckbt51_wake_skip_ms;
     if (!skip_wake)
 #endif
     {

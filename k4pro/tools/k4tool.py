@@ -37,7 +37,7 @@ DIAG_ID = 0xC4
 CMD_INFO, CMD_COUNTERS, CMD_RESET, CMD_PROBE, CMD_OPTION, CMD_PROFILE = 1, 2, 3, 4, 5, 6
 SECTIONS = ["Bluetooth UART task", "Bluetooth events", "report buffer", "indicators", "battery",
             "low-power checks", "key matrix scan", "LED flush step", "Bluetooth send (wake + UART)"]
-OPTIONS = {"led-flush-incremental": 1}
+OPTIONS = {"led-flush-incremental": 1, "wake-skip-100ms": 2, "flush-chunks": 3}
 PACKET = 32
 VK_F24 = 0x87
 
@@ -234,6 +234,11 @@ def cmd_profile(kb, args):
     print("Sections not listed (RGB rendering, USB, QMK core) make up the rest of a pass.")
 
 
+def cmd_option(kb, args):
+    v = kb.option(args.name, 0xFF if args.value is None else args.value)
+    print(f"{args.name} = {v}")
+
+
 def cmd_reset(kb, args):
     kb.reset()
     print("Counters cleared.")
@@ -282,7 +287,7 @@ def cmd_watch(kb, args):
 def cmd_latency(kb, args):
     hook = KeyHook()
     time.sleep(0.2)
-    res = measure(kb, hook, args.n)
+    res = measure(kb, hook, args.n, gap=args.gap)
     print_result(res)
     print("Measured from the PC request to the key arriving in Windows: it includes about 1 ms of USB\n"
           "to reach the keyboard, but not the switch travel or debounce (those happen before).")
@@ -325,7 +330,7 @@ def cmd_ab_flush(kb, args):
             json.dump(results, f, indent=2)
 
 
-def measure(kb, hook, count, quiet=False):
+def measure(kb, hook, count, quiet=False, gap=None):
     i = kb.info()
     kb.drain()
     if i["transport"] == "Bluetooth" and i["bluetooth"] != "connected":
@@ -357,7 +362,7 @@ def measure(kb, hook, count, quiet=False):
             lost += 1
             hook.reinstall()  # a missed probe is almost always a dropped hook on the PC side
         kb.drain()
-        time.sleep(random.uniform(0.02, 0.05))  # random gap: no lock-step with the radio interval
+        time.sleep(gap if gap else random.uniform(0.02, 0.05))  # random gap: no lock-step with the radio interval
         if (n + 1) % 100 == 0:
             loop_max = max(loop_max, kb.info()["loop_max_ms"])
             if not quiet:
@@ -380,6 +385,9 @@ def main():
     sub.add_parser("reset")
     p = sub.add_parser("watch"); p.add_argument("--chatter-ms", type=int, default=30)
     p = sub.add_parser("latency"); p.add_argument("-n", type=int, default=300); p.add_argument("--save")
+    p.add_argument("--gap", type=float, help="fixed pause between taps, in s (default: random 20-50 ms)")
+    p = sub.add_parser("option", help="read or set a run-time firmware option")
+    p.add_argument("name", choices=sorted(OPTIONS)); p.add_argument("value", type=int, nargs="?")
     p = sub.add_parser("profile", help="longest run of each firmware section")
     p.add_argument("--seconds", type=int, default=20); p.add_argument("--live", action="store_true")
     p = sub.add_parser("ab-flush", help="A/B test: stock vs incremental LED flush")
@@ -387,7 +395,7 @@ def main():
     args = ap.parse_args()
     kb = Keyboard()
     {"info": cmd_info, "reset": cmd_reset, "watch": cmd_watch, "latency": cmd_latency,
-     "ab-flush": cmd_ab_flush, "profile": cmd_profile}[args.cmd](kb, args)
+     "ab-flush": cmd_ab_flush, "profile": cmd_profile, "option": cmd_option}[args.cmd](kb, args)
 
 
 if __name__ == "__main__":
