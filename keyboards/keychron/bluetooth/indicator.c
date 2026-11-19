@@ -122,7 +122,7 @@ static pin_t bt_led_pin_list[HOST_DEVICES_COUNT] = BT_INDICATION_LED_PIN_LIST;
 /* IMPROVEMENT: lock keys (Caps / Num) light in a colour no other indicator uses, so
  * they stand out from a white or blue backlight. Override LOCK_INDICATOR_COLOR in config.h. */
 #    ifndef LOCK_INDICATOR_COLOR
-#        define LOCK_INDICATOR_COLOR 255, 64, 0 // orange
+#        define LOCK_INDICATOR_COLOR 255, 128, 0 // bright orange
 #    endif
 #    define SET_LED_LOCK(idx) rgb_matrix_set_color(idx, LOCK_INDICATOR_COLOR)
 #    define SET_LED_BT(idx) rgb_matrix_set_color(idx, 0, 0, 255)
