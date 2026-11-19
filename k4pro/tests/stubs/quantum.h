@@ -5,6 +5,7 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h> /* before the dprintf macro: glibc declares dprintf() */
 #include <string.h>
 
 #include "config.h"
