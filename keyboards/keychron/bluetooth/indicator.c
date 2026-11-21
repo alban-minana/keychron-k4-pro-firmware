@@ -43,7 +43,7 @@
 #endif
 
 #define LED_ON 0x80
-#define INDICATOR_SET(s) memcpy(&indicator_config, &s##_config, sizeof(indicator_config_t));
+#define INDICATOR_SET(s) indicator_load(&s##_config);
 
 enum {
     BACKLIGHT_OFF            = 0x00,
@@ -60,6 +60,16 @@ static bluetooth_state_t indicator_state;
 static uint16_t          next_period;
 static indicator_type_t  type;
 static uint32_t          indicator_timer_buffer = 0;
+/* Backlight turned off by the user when the indication started (sampled while no
+ * indication runs, since an indication forces the LEDs on). */
+static bool backlight_user_off = false;
+
+static void indicator_load(const indicator_config_t *config) {
+    memcpy(&indicator_config, config, sizeof(indicator_config_t));
+    /* An indication without highlight shows the host key over the running effect. With
+     * the backlight off that would light the whole board: keep the other LEDs off. */
+    if (backlight_user_off) indicator_config.highlight = true;
+}
 
 #if defined(BAT_LOW_LED_PIN) || defined(BAT_LOW_LED_PIN_STATE)
 static uint32_t bat_low_pin_indicator  = 0;
@@ -392,6 +402,10 @@ void indicator_set(bluetooth_state_t state, uint8_t host_index) {
     }
 
     indicator_timer_buffer = sync_timer_read32();
+
+#if defined(LED_MATRIX_ENABLE) || defined(RGB_MATRIX_ENABLE)
+    if (!indicator_config.value) backlight_user_off = !LED_DRIVER_IS_ENABLED();
+#endif
 
     /* Turn on backlight mode for indicator */
     indicator_enable();

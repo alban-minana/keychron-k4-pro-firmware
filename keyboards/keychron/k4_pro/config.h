@@ -68,6 +68,18 @@
 #        define BT_WAKE_KEY_BUFFER_MS 3000
 #    endif
 
+/* Automatic reconnection (first key after sleep) and "connected" indications: only the
+ * host key (1/2/3) blinks or lights blue, the backlight stays as it is. Stock Keychron
+ * turned every other LED off for both (highlight = true), so a wake-up went dark, back on,
+ * dark for 2 s, back on. Pairing (Fn+1/2/3 held) still turns the other LEDs off.
+ * Fields: type, on ms, off ms, duration ms, highlight, elapsed. */
+#    ifndef INDICATOR_CONFIG_RECONNECTING
+#        define INDICATOR_CONFIG_RECONNECTING {INDICATOR_BLINK, 100, 100, 600, false, 0};
+#    endif
+#    ifndef INDICATOR_CONFIG_CONNECTD
+#        define INDICATOR_CONFIG_CONNECTD {INDICATOR_ON_OFF, 2000, 250, 2000, false, 0};
+#    endif
+
 /* Send the battery level to the host OS (shown in its Bluetooth settings).
  * Comment out to disable. */
 #    define BT_REPORT_BATTERY_LEVEL

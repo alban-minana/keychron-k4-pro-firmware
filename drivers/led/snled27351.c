@@ -70,6 +70,31 @@ snled27351_driver_t driver_buffers[SNLED27351_DRIVER_COUNT] = {{
     .led_control_buffer_dirty = false,
 }};
 
+#ifdef SNLED27351_INCREMENTAL_FLUSH
+/* FIX: the incremental flush sends one 16-byte register line per main-loop pass, and each
+ * line holds a single colour channel of up to 16 LEDs. When most of the frame changes at
+ * once (backlight back on after sleep, start or end of a Bluetooth indication), the LEDs
+ * showed the half-written frame for tens of ms: rows lit in green first (the G line is
+ * sent before R and B), then cyan, then white. Such frames are now sent in one block.
+ * A LED "jumps" when a channel changes by SNLED27351_JUMP_DELTA or more since the last
+ * flush; SNLED27351_JUMP_LEDS jumping LEDs make the frame go out in one block. */
+#    ifndef SNLED27351_JUMP_DELTA
+#        define SNLED27351_JUMP_DELTA 64
+#    endif
+#    ifndef SNLED27351_JUMP_LEDS
+#        define SNLED27351_JUMP_LEDS 16
+#    endif
+static uint8_t flush_jumps = 0; // LEDs that jumped since the last snled27351_flush()
+
+static inline bool snled27351_jump(uint8_t from, uint8_t to) {
+    return (from > to ? from - to : to - from) >= SNLED27351_JUMP_DELTA;
+}
+
+static inline void snled27351_count_jump(bool jumped) {
+    if (jumped && flush_jumps < UINT8_MAX) flush_jumps++;
+}
+#endif
+
 void snled27351_write_register(uint8_t index, uint8_t reg, uint8_t data) {
 #if SNLED27351_I2C_PERSISTENCE > 0
     for (uint8_t i = 0; i < SNLED27351_I2C_PERSISTENCE; i++) {
@@ -177,6 +202,9 @@ void snled27351_set_color(int index, uint8_t red, uint8_t green, uint8_t blue) {
             return;
         }
 
+#ifdef SNLED27351_INCREMENTAL_FLUSH
+        snled27351_count_jump(snled27351_jump(driver_buffers[led.driver].pwm_buffer[led.r], red) || snled27351_jump(driver_buffers[led.driver].pwm_buffer[led.g], green) || snled27351_jump(driver_buffers[led.driver].pwm_buffer[led.b], blue));
+#endif
         driver_buffers[led.driver].pwm_buffer[led.r] = red;
         driver_buffers[led.driver].pwm_buffer[led.g] = green;
         driver_buffers[led.driver].pwm_buffer[led.b] = blue;
@@ -297,7 +325,9 @@ static void snled27351_flush_complete(void) {
 }
 
 void snled27351_flush(void) {
-    if (!snled27351_incremental_flush) {
+    bool jumped = flush_jumps >= SNLED27351_JUMP_LEDS;
+    flush_jumps = 0;
+    if (!snled27351_incremental_flush || jumped) {
         snled27351_flush_complete();
         for (uint8_t i = 0; i < SNLED27351_DRIVER_COUNT; i++) snled27351_update_pwm_buffers(i);
         return;

@@ -1,5 +1,8 @@
 /* Indicator: backlight dimming before the battery timeout (indicator_backlit_dim_task
  * in indicator.c), built with RGB_MATRIX_ENABLE like the RGB variants. */
+/* Same indications as the K4 Pro (keyboards/keychron/k4_pro/config.h). */
+#define INDICATOR_CONFIG_RECONNECTING {INDICATOR_BLINK, 100, 100, 600, false, 0};
+#define INDICATOR_CONFIG_CONNECTD {INDICATOR_ON_OFF, 2000, 250, 2000, false, 0};
 #include "../../keyboards/keychron/bluetooth/indicator.c"
 
 #include "fakes.h"
@@ -19,7 +22,8 @@ void rgb_matrix_disable_time_reset(void) {}
 void rgb_matrix_set_color(int index, uint8_t r, uint8_t g, uint8_t b) {}
 void rgb_matrix_set_color_all(uint8_t r, uint8_t g, uint8_t b) {}
 bool rgb_matrix_indicators_user(void) { return true; }
-void eeconfig_read_rgb_matrix(rgb_config_t *config) {}
+static bool  fake_eeprom_rgb_enabled; /* backlight on/off as saved by the user */
+void eeconfig_read_rgb_matrix(rgb_config_t *config) { fake_rgb_enabled = fake_eeprom_rgb_enabled; }
 void eeconfig_update_rgb_matrix_default(void) {}
 
 void bat_level_animiation_start(uint8_t percentage) {}
@@ -39,6 +43,7 @@ static void test_setup(void) {
     memset(&indicator_config, 0, sizeof(indicator_config));
     dim_active              = false;
     fake_rgb_enabled        = true;
+    fake_eeprom_rgb_enabled = true;
     rgb_matrix_config.hsv.v = 200;
     indicator_set_backlit_timeout(TIMEOUT_MS);
 }
@@ -180,6 +185,39 @@ TEST(dim_runs_from_indicator_task) {
     CHECK_EQ(60, rgb_matrix_config.hsv.v);
 }
 
+/* Wake-up reconnection: only the host key blinks, the rest of the backlight stays on. */
+TEST(reconnecting_keeps_the_backlight) {
+    fake_transport = TRANSPORT_BLUETOOTH;
+    indicator_set(BLUETOOTH_DISCONNECTED, 1);
+    indicator_set(BLUETOOTH_RECONNECTING, 1);
+    CHECK(indicator_config.value != 0);
+    CHECK(!indicator_config.highlight);
+    CHECK(fake_rgb_enabled);
+}
+
+/* Backlight turned off by the user: the indication must not light the whole board with
+ * the effect, so every other LED is kept off (highlight) as in the stock firmware. */
+TEST(reconnecting_with_backlight_off_shows_only_the_host_key) {
+    fake_transport          = TRANSPORT_BLUETOOTH;
+    fake_rgb_enabled        = false;
+    fake_eeprom_rgb_enabled = false;
+    indicator_set(BLUETOOTH_DISCONNECTED, 1);
+    indicator_set(BLUETOOTH_RECONNECTING, 1);
+    CHECK(indicator_config.value != 0);
+    CHECK(indicator_config.highlight);
+}
+
+TEST(connected_with_backlight_off_shows_only_the_host_key) {
+    fake_transport          = TRANSPORT_BLUETOOTH;
+    fake_rgb_enabled        = false;
+    fake_eeprom_rgb_enabled = false;
+    indicator_set(BLUETOOTH_DISCONNECTED, 1);
+    indicator_set(BLUETOOTH_RECONNECTING, 1); // forces the LEDs on for the indication
+    indicator_set(BLUETOOTH_CONNECTED, 1);
+    CHECK(indicator_config.value != 0);
+    CHECK(indicator_config.highlight);
+}
+
 int main(void) {
     RUN(no_dim_before_timeout_minus_lead);
     RUN(fades_to_30_percent_over_1s);
@@ -197,5 +235,8 @@ int main(void) {
     RUN(switching_to_usb_while_dimmed_restores);
     RUN(no_dim_when_backlight_disabled);
     RUN(dim_runs_from_indicator_task);
+    RUN(reconnecting_keeps_the_backlight);
+    RUN(reconnecting_with_backlight_off_shows_only_the_host_key);
+    RUN(connected_with_backlight_off_shows_only_the_host_key);
     return harness_report("indicator");
 }
