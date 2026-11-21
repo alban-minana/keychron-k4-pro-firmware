@@ -22,7 +22,7 @@ CFLAGS := -std=gnu11 -O0 -g -Wall -Wno-unused-function -Wno-unused-variable -Wno
           -Wno-unused-but-set-variable -Werror=implicit-function-declaration \
           -Istubs -I. -I$(BT) $(DEFS)
 
-SUITES := battery report_buffer bluetooth indicator k4_pro
+SUITES := battery report_buffer bluetooth indicator k4_pro snled27351
 EXE    := $(if $(filter Windows_NT,$(OS)),.exe,)
 BINS   := $(SUITES:%=$(OUT)/test_%$(EXE))
 
@@ -52,6 +52,9 @@ $(OUT)/test_indicator$(EXE): test_indicator.c $(BT)/indicator.c stubs/fakes.c $(
 
 $(OUT)/test_k4_pro$(EXE): test_k4_pro.c $(K4)/k4_pro.c stubs/fakes.c $(HDRS) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ test_k4_pro.c stubs/fakes.c
+
+$(OUT)/test_snled27351$(EXE): test_snled27351.c $(ROOT)/drivers/led/snled27351.c $(wildcard stubs_led/*.h) harness.h | $(OUT)
+	$(CC) -std=gnu11 -O0 -g -Wall -Wno-unused-function -Wno-unused-variable -Istubs_led -I. -I$(ROOT)/drivers/led -o $@ test_snled27351.c
 
 clean:
 	rm -rf $(OUT)
